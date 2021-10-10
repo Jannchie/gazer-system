@@ -1,4 +1,4 @@
-module github.com/jannchie/gs-server
+module github.com/jannchie/gazer-system
 
 go 1.16
 

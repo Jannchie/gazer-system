@@ -1,6 +1,6 @@
 package main
 
-import "github.com/jannchie/gs-server/internal/gs"
+import "github.com/jannchie/gazer-system/internal/gs"
 
 func main() {
 	gss := gs.NewDefaultServer()

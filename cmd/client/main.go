@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"github.com/jannchie/gs-server/api"
+	"github.com/jannchie/gazer-system/api"
 	"google.golang.org/grpc"
 	"log"
 )

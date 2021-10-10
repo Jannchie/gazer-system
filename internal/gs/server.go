@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jannchie/gs-server/api"
+	"github.com/jannchie/gazer-system/api"
 	"github.com/jannchie/speedo"
 	"github.com/wybiral/torgo"
 	"google.golang.org/grpc"

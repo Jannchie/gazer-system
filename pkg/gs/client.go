@@ -1,7 +1,7 @@
 package gs
 
 import (
-	"github.com/jannchie/gs-server/api"
+	"github.com/jannchie/gazer-system/api"
 	"google.golang.org/grpc"
 )
 
