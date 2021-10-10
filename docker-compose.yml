@@ -1,0 +1,16 @@
+version: "3.9"
+volumes:
+  db:
+services:
+  server:
+    build:
+      dockerfile: docker/server.dockerfile
+      context: .
+  proxy:
+    image: dperson/torproxy
+    ports:
+      - "8118:8118"
+      - "9050:9050"
+      - "9051:9051"
+    environment:
+      PASSWORD: 123456

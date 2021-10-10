@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+option go_package = "/api";
+import "google/protobuf/timestamp.proto";
+// Add a Task
+message Task {
+  string url = 1;
+  string tag = 2;
+  uint64 intervalMS = 3;
+}
+
+message Raw {
+  uint64 id = 1;
+  string url = 2;
+  string tag = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  bytes data = 5;
+}
+
+message ListRawsReq{
+  string tag = 1;
+  string url = 2;
+  uint32 limit = 3;
+}
+
+message RawsResp{
+  repeated Raw raws = 1;
+}
+
+message ConsumeRawsReq{
+  repeated uint64 idList = 1;
+}
+
+message AddTasksReq{
+  repeated Task tasks = 1;
+}
+
+
+message OperationResp {
+  int32 code = 1;
+  string msg = 2;
+}
+
+service GazerSystem {
+  rpc AddTasks(AddTasksReq) returns (OperationResp);
+  rpc ListRaws(ListRawsReq) returns (RawsResp);
+  rpc ConsumeRaws(ConsumeRawsReq) returns (OperationResp);
+}
