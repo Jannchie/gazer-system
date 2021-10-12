@@ -29,11 +29,12 @@ func main() {
 	for i := range raws.GetRaws() {
 		idList = append(idList, raws.GetRaws()[i].Id)
 	}
+	log.Printf("%+v", raws)
 	_, _ = client.ConsumeRaws(ctx, &api.ConsumeRawsReq{IdList: idList})
 	res, err := client.AddTasks(ctx, &api.AddTasksReq{
 		Tasks: []*api.Task{
 			{
-				Url:        "https://www.baidu.com",
+				Url:        "https://pv.sohu.com/cityjson",
 				Tag:        "test",
 				IntervalMS: 0,
 			},

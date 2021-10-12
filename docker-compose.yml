@@ -1,16 +1,25 @@
-version: "3.9"
+version: "3"
 volumes:
   db:
 services:
   server:
+    image: jannchie/gazer-system-server
     build:
       dockerfile: docker/server.dockerfile
       context: .
+    ports:
+      - "2000:2000"
+    volumes:
+      - db:/data
+    environment:
+      TOR: "proxy:9050"
+      TOR_CTL: "proxy:9051"
+      PORT: 2000
+      DSN: "/data/gazer-system.db"
   proxy:
     image: dperson/torproxy
-    ports:
-      - "8118:8118"
-      - "9050:9050"
-      - "9051:9051"
+    expose:
+      - 9050
+      - 9051
     environment:
       PASSWORD: 123456

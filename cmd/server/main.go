@@ -1,8 +1,10 @@
 package main
 
-import "github.com/jannchie/gazer-system/internal/gs"
+import (
+	"github.com/jannchie/gazer-system/internal/gs"
+)
 
 func main() {
 	gss := gs.NewDefaultServer()
-	gss.Run(2000)
+	gss.Run()
 }

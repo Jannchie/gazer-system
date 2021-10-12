@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jannchie/gazer-system/api"
+	"github.com/jannchie/gazer-system/internal/variables"
 	"github.com/jannchie/speedo"
 	"github.com/wybiral/torgo"
 	"google.golang.org/grpc"
@@ -202,42 +203,45 @@ type TemporaryError struct {
 func (t *TemporaryError) Temporary() bool {
 	return true
 }
-
-var DefaultConfig = Config{
-	Debug:             true,
-	DSN:               "./data.db",
-	TorSock5Host:      "localhost:9050",
-	TorControllerHost: "localhost:9051",
-	CollectHandle: func(c *Collector, targetURL string) ([]byte, error) {
-		resp, err := c.client.Get(targetURL)
-		if err != nil {
-			return nil, err
-		}
-		defer func(Body io.ReadCloser) {
-			_ = Body.Close()
-		}(resp.Body)
-		if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-			// if is 4XX error, should wait for proxy refresh.
-			err := c.RefreshClient()
+func getDefaultConfig() *Config {
+	variables.Init()
+	return &Config{
+		Debug:             true,
+		DSN:               *variables.DSN,
+		TorSock5Host:      *variables.TorAddr,
+		TorControllerHost: *variables.TorCtlAddr,
+		CollectHandle: func(c *Collector, targetURL string) ([]byte, error) {
+			resp, err := c.client.Get(targetURL)
 			if err != nil {
-				return nil, TemporaryError{err}
+				return nil, err
 			}
-			return nil, TemporaryError{fmt.Errorf("status code error: %d", resp.StatusCode)}
-		}
-		data, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, err
-		}
-		//log.Printf("Download succeed: %s\n", targetURL)
-		return data, nil
-	},
+			defer func(Body io.ReadCloser) {
+				_ = Body.Close()
+			}(resp.Body)
+			if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+				// if is 4XX error, should wait for proxy refresh.
+				err := c.RefreshClient()
+				if err != nil {
+					return nil, TemporaryError{err}
+				}
+				return nil, TemporaryError{fmt.Errorf("status code error: %d", resp.StatusCode)}
+			}
+			data, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, err
+			}
+			//log.Printf("Download succeed: %s\n", targetURL)
+			return data, nil
+		},
+	}
 }
 
 func NewDefaultServer() *Server {
-	return NewServer(&DefaultConfig)
+	return NewServer(getDefaultConfig())
 }
 
 func NewServer(cfg *Config) *Server {
+	variables.Init()
 	logLevel := getLogLevel(cfg)
 	db, err := gorm.Open(sqlite.Open(cfg.DSN), &gorm.Config{
 		Logger: logger.New(
@@ -275,15 +279,15 @@ func getLogLevel(cfg *Config) logger.LogLevel {
 	return logLevel
 }
 
-func (s *Server) Run(port uint16) {
+func (s *Server) Run() {
 	taskChan := make(chan Task)
 	go s.addToChan(taskChan)
 	go s.consumeTask(taskChan)
-	s.serve(port)
+	s.serve()
 }
 
-func (s *Server) serve(port uint16) {
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
+func (s *Server) serve() {
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *variables.Port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -364,15 +368,25 @@ type Collector struct {
 
 func NewCollector(proxySock5Host, proxyControllerHost string, collect CollectHandle) *Collector {
 	for {
+		client, err := torgo.NewClient(proxySock5Host)
+		if err != nil {
+			log.Println(err)
+			log.Println("[PROXY] Cannot connect to proxy host")
+			time.Sleep(time.Second)
+			continue
+		}
+
 		proxyController, err := torgo.NewController(proxyControllerHost)
 		if err != nil {
+			log.Println(err)
 			log.Println("[PROXY] Cannot connect to proxy controller")
 			time.Sleep(time.Second)
 			continue
 		}
-		client, err := torgo.NewClient(proxySock5Host)
+
+		err = proxyController.AuthenticatePassword("123456")
 		if err != nil {
-			log.Println("[PROXY] Cannot connect to proxy host")
+			log.Println(err)
 			time.Sleep(time.Second)
 			continue
 		}
