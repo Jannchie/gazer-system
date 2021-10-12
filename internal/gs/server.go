@@ -255,7 +255,7 @@ type Collector struct {
 	proxyController *torgo.Controller
 	client          *http.Client
 	proxySock5Host  string
-	lastRefresh     *time.Time
+	lastRefresh     time.Time
 	concurrency     uint8
 	semChannel      chan struct{}
 }
@@ -292,18 +292,16 @@ func NewCollector(proxySock5Host, proxyControllerHost string, collect CollectHan
 			collectHandle:   collect,
 			concurrency:     concurrency,
 			semChannel:      make(chan struct{}, concurrency),
+			lastRefresh:     time.Now().UTC(),
 		}
 	}
 }
 
 func (c *Collector) RefreshClient() error {
-	duration := time.Since(*c.lastRefresh)
+	duration := time.Since(c.lastRefresh)
 	if duration > 10*time.Second {
-		if duration < time.Hour {
-			log.Println("Refreshed Client! Duration: ", duration)
-		}
-		now := time.Now()
-		c.lastRefresh = &now
+		now := time.Now().UTC()
+		c.lastRefresh = now
 		if c.proxyController == nil {
 			return errors.New("proxy not ready")
 		}
@@ -319,6 +317,9 @@ func (c *Collector) RefreshClient() error {
 		}
 		c.client = client
 		c.client.Timeout = time.Second * 10
+		if duration < time.Hour {
+			log.Println("Refreshed Client! Duration: ", duration)
+		}
 	}
 	return nil
 }
