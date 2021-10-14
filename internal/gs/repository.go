@@ -13,8 +13,9 @@ type Repository struct {
 }
 
 func NewRepository(db *gorm.DB) *Repository {
-	r := &Repository{db: db, taskUpdateChannel: make(chan Task, 128)}
+	r := &Repository{db: db, taskUpdateChannel: make(chan Task, 128), rawConsumeChannel: make(chan uint64, 128)}
 	go r.updateTask()
+	go r.recoverRaw()
 	return r
 }
 func (r *Repository) updateTask() {
@@ -26,15 +27,15 @@ func (r *Repository) updateTask() {
 		select {
 		case <-ticker.C:
 			if len(deleteList) != 0 {
-				r.db.Unscoped().Where("id in ?", deleteList).Delete(&Task{})
+				r.db.Unscoped().Where("id IN ?", deleteList).Delete(&Task{})
 				deleteList = deleteList[:0]
 			}
 			if len(updateList) != 0 {
-				r.db.Where("id in ?", updateList).Update("next", time.Now().UTC().Unix())
+				r.db.Where("id IN ?", updateList).Update("next", time.Now().UTC().Unix())
 				updateList = updateList[:0]
 			}
 			if len(consumeList) != 0 {
-				r.db.Unscoped().Where("id in ?", consumeList).Delete(&Raw{})
+				r.db.Unscoped().Where("id IN ?", consumeList).Delete(&Raw{})
 				consumeList = consumeList[:0]
 			}
 		case task := <-r.taskUpdateChannel:
@@ -53,7 +54,18 @@ func (r *Repository) AddTasks(ctx context.Context, tasks []Task) error {
 }
 func (r *Repository) ListRaws(ctx context.Context, tag string, limit uint32) ([]Raw, error) {
 	var raws []Raw
-	err := r.db.WithContext(ctx).Where("tag = ?", tag).Limit(int(limit)).Find(&raws).Error
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := r.db.Where("tag = ?", tag).Limit(int(limit)).Find(&raws).Error
+		if err != nil {
+			return err
+		}
+		//idList := make([]uint64, len(raws))
+		//for i := range raws {
+		//	idList[i] = raws[i].ID
+		//}
+		r.db.Delete(&raws)
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -105,4 +117,14 @@ func (r *Repository) ConsumeRaws(list []uint64) {
 
 func (r *Repository) ConsumeRaw(id uint64) {
 	r.rawConsumeChannel <- id
+}
+
+func (r *Repository) recoverRaw() {
+	ticker := time.NewTicker(time.Second * 10)
+	for {
+		select {
+		case <-ticker.C:
+			r.db.Unscoped().Model(&Raw{}).Where("deleted_at < ?", time.Now().Add(-time.Second*30)).Update("deleted_at", nil)
+		}
+	}
 }

@@ -30,7 +30,10 @@ func main() {
 		idList = append(idList, raws.GetRaws()[i].Id)
 	}
 	log.Printf("%+v", raws)
-	_, _ = client.ConsumeRaws(ctx, &api.ConsumeRawsReq{IdList: idList})
+	_, err = client.ConsumeRaws(ctx, &api.ConsumeRawsReq{IdList: idList})
+	if err != nil {
+		panic(err)
+	}
 	res, err := client.AddTasks(ctx, &api.AddTasksReq{
 		Tasks: []*api.Task{
 			{

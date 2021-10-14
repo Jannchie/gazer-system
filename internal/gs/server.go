@@ -28,7 +28,7 @@ type Server struct {
 	consumeSpeedo *speedo.Speedometer
 }
 
-func (s *Server) ConsumeRaws(ctx context.Context, req *api.ConsumeRawsReq) (*api.OperationResp, error) {
+func (s *Server) ConsumeRaws(_ context.Context, req *api.ConsumeRawsReq) (*api.OperationResp, error) {
 	s.repository.ConsumeRaws(req.IdList)
 	s.consumeSpeedo.AddCount(uint64(len(req.IdList)))
 	return &api.OperationResp{Msg: "ok", Code: 1}, nil
@@ -54,6 +54,9 @@ type Raw struct {
 }
 
 func (s *Server) ListRaws(ctx context.Context, req *api.ListRawsReq) (*api.RawsResp, error) {
+	if req.Limit > 50 || req.Limit == 0 {
+		req.Limit = 50
+	}
 	raws, err := s.repository.ListRaws(ctx, req.Tag, req.Limit)
 	if err != nil {
 		return nil, err
