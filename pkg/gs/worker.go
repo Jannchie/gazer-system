@@ -5,6 +5,7 @@ import (
 	"github.com/jannchie/gazer-system/api"
 	"log"
 	"net/url"
+	"time"
 
 	"github.com/jannchie/speedo"
 )
@@ -75,6 +76,7 @@ func NewSenderWorker(gazerSystemClient api.GazerSystemClient, sender func(chan<-
 		taskChannel:       make(chan *api.Task),
 	}
 }
+
 func NewParserWorker(gazerSystemClient api.GazerSystemClient, tag string, parser func(*api.Raw) error) *ParserWorker {
 	return &ParserWorker{
 		GazerSystemClient: gazerSystemClient,
@@ -99,10 +101,16 @@ func (w *ParserWorker) Run(ctx context.Context) {
 				dataList, err := w.GazerSystemClient.ListRaws(context.Background(), &api.ListRawsReq{Tag: w.Tag})
 				if err != nil {
 					log.Println(err)
+					time.Sleep(time.Second)
 					continue
 				}
-				for _, data := range dataList.GetRaws() {
-					w.rawChannel <- data
+				raws := dataList.GetRaws()
+				if len(raws) == 0 {
+					time.Sleep(time.Second)
+				} else {
+					for _, data := range raws {
+						w.rawChannel <- data
+					}
 				}
 			}
 			// 填 Raw 通道
@@ -142,6 +150,7 @@ func (w *ParserWorker) Run(ctx context.Context) {
 
 func (w *SenderWorker) Run(ctx context.Context) {
 	go func() {
+		s := speedo.NewSpeedometer(speedo.Config{Name: "Sender", Log: true})
 		// 消费 URL 通道
 		for {
 			select {
@@ -149,6 +158,7 @@ func (w *SenderWorker) Run(ctx context.Context) {
 				if !ok {
 					return
 				}
+				s.AddCount(1)
 				_, err := w.GazerSystemClient.AddTasks(context.Background(), &api.AddTasksReq{Tasks: []*api.Task{task}})
 				if err != nil {
 					log.Println(err)
