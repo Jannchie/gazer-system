@@ -12,37 +12,40 @@ import (
 
 type SenderUnit interface {
 	Sender(chan<- string)
+	Run(ctx context.Context)
 }
 
 type ParserUnit interface {
 	Parser(raw *api.Raw) error
 	GetTargetURL() *url.URL
+	Run(ctx context.Context)
 }
 
 type WorkUnit interface {
-	Sender(chan<- *api.Task)
-	Parser(*api.Raw) error
-	GetTag() string
+	Run(ctx context.Context)
 }
 
 type WorkerGroup struct {
-	WorkerList []*Worker
+	WorkerList []WorkUnit
 	Server     string
+	Client     api.GazerSystemClient
 }
 
 func NewWorkerGroup(server string) *WorkerGroup {
 	return &WorkerGroup{
 		Server: server,
+		Client: NewClient(server),
 	}
 }
 
 func (g *WorkerGroup) AddWorker(targetURL string, sender func(chan<- *api.Task), parser func(*api.Raw) error) {
-	g.WorkerList = append(g.WorkerList, NewWorker(g.Server, targetURL, sender, parser))
+	g.WorkerList = append(g.WorkerList, NewBothWorker(g.Client, targetURL, sender, parser))
 }
 
 func (g *WorkerGroup) AddByWorkUnit(w WorkUnit) {
-	g.WorkerList = append(g.WorkerList, NewWorker(g.Server, w.GetTag(), w.Sender, w.Parser))
+	g.WorkerList = append(g.WorkerList, w)
 }
+
 func (g *WorkerGroup) Run(ctx context.Context) {
 	for i := range g.WorkerList {
 		go g.WorkerList[i].Run(ctx)
@@ -50,47 +53,50 @@ func (g *WorkerGroup) Run(ctx context.Context) {
 	<-ctx.Done()
 }
 
-type Worker struct {
-	Worker       api.GazerSystemClient
+type Worker interface {
+	Run(ctx context.Context)
+}
+
+type BothWorker struct {
+	Client       api.GazerSystemClient
 	SenderWorker *SenderWorker
 	ParserWorker *ParserWorker
 }
 
 type SenderWorker struct {
-	GazerSystemClient api.GazerSystemClient
-	taskChannel       chan *api.Task
-	Sender            func(chan<- *api.Task)
+	Client      api.GazerSystemClient
+	taskChannel chan *api.Task
+	Sender      func(chan<- *api.Task)
 }
 
 type ParserWorker struct {
-	GazerSystemClient api.GazerSystemClient
-	Tag               string
-	rawChannel        chan *api.Raw
-	Parser            func(*api.Raw) error
+	Client     api.GazerSystemClient
+	Tag        string
+	rawChannel chan *api.Raw
+	Parser     func(*api.Raw) error
 }
 
 func NewSenderWorker(gazerSystemClient api.GazerSystemClient, sender func(chan<- *api.Task)) *SenderWorker {
 	return &SenderWorker{
-		GazerSystemClient: gazerSystemClient,
-		Sender:            sender,
-		taskChannel:       make(chan *api.Task),
+		Client:      gazerSystemClient,
+		Sender:      sender,
+		taskChannel: make(chan *api.Task),
 	}
 }
 
 func NewParserWorker(gazerSystemClient api.GazerSystemClient, tag string, parser func(*api.Raw) error) *ParserWorker {
 	return &ParserWorker{
-		GazerSystemClient: gazerSystemClient,
-		Parser:            parser,
-		rawChannel:        make(chan *api.Raw),
-		Tag:               tag,
+		Client:     gazerSystemClient,
+		Parser:     parser,
+		rawChannel: make(chan *api.Raw),
+		Tag:        tag,
 	}
 }
-func NewWorker(server string, tag string, sender func(chan<- *api.Task), parser func(*api.Raw) error) *Worker {
-	core := NewClient(server)
-	return &Worker{
-		Worker:       core,
-		SenderWorker: NewSenderWorker(core, sender),
-		ParserWorker: NewParserWorker(core, tag, parser),
+func NewBothWorker(client api.GazerSystemClient, tag string, sender func(chan<- *api.Task), parser func(*api.Raw) error) *BothWorker {
+	return &BothWorker{
+		Client:       client,
+		SenderWorker: NewSenderWorker(client, sender),
+		ParserWorker: NewParserWorker(client, tag, parser),
 	}
 }
 
@@ -98,7 +104,7 @@ func (w *ParserWorker) Run(ctx context.Context) {
 	if w.Tag != "" {
 		go func() {
 			for {
-				dataList, err := w.GazerSystemClient.ListRaws(context.Background(), &api.ListRawsReq{Tag: w.Tag})
+				dataList, err := w.Client.ListRaws(context.Background(), &api.ListRawsReq{Tag: w.Tag})
 				if err != nil {
 					log.Println(err)
 					time.Sleep(time.Second)
@@ -133,7 +139,7 @@ func (w *ParserWorker) Run(ctx context.Context) {
 							log.Println(err)
 							continue
 						}
-						_, err = w.GazerSystemClient.ConsumeRaws(ctx, &api.ConsumeRawsReq{IdList: []uint64{data.GetId()}})
+						_, err = w.Client.ConsumeRaws(ctx, &api.ConsumeRawsReq{IdList: []uint64{data.GetId()}})
 						if err != nil {
 							log.Println(err)
 							continue
@@ -159,7 +165,7 @@ func (w *SenderWorker) Run(ctx context.Context) {
 					return
 				}
 				s.AddCount(1)
-				_, err := w.GazerSystemClient.AddTasks(context.Background(), &api.AddTasksReq{Tasks: []*api.Task{task}})
+				_, err := w.Client.AddTasks(context.Background(), &api.AddTasksReq{Tasks: []*api.Task{task}})
 				if err != nil {
 					log.Println(err)
 					continue
@@ -174,7 +180,7 @@ func (w *SenderWorker) Run(ctx context.Context) {
 	<-ctx.Done()
 	close(w.taskChannel)
 }
-func (w *Worker) Run(ctx context.Context) {
+func (w *BothWorker) Run(ctx context.Context) {
 	go w.ParserWorker.Run(ctx)
 	go w.SenderWorker.Run(ctx)
 	<-ctx.Done()
