@@ -9,3 +9,47 @@
 3. 并发爬取：使用 Golang 开发，支持高速并发爬取，IO 才是唯一瓶颈。
 4. 数据存储：支持 Sqlite 数据存储，无需配置数据库，开箱即用。
 
+## 架构
+
+整个系统采用 CS 架构，服务器能够并发消费爬取任务，并提供原始数据。客户端可以批量拉取原始数据进行进一步解析。
+整个过程提供类似消息队列的确认机制和重试机制，防止爬取任务重复或者丢失。
+
+## 服务端部署
+
+建议使用 Docker Compose 部署。否则需要自行配置代理服务器并进行构建（目前没有提供构建步骤）。
+
+使用 Docker Compose 部署，需要提供的 yaml 示例文件如下：
+
+```yaml
+version: "3"
+volumes:
+  db:
+services:
+  server:
+    image: jannchie/gazer-system-server
+    ports:
+      - "2000:2000"
+    volumes:
+      - db:/data
+    environment:
+      TOR: "proxy:9050"
+      TOR_CTL: "proxy:9051"
+      PORT: 2000
+      DSN: "/data/gazer-system.db"
+      TOR_PASSWORD: ${TOR_PASSWORD}
+  proxy:
+    image: dperson/torproxy
+    expose:
+      - 9050
+      - 9051
+    environment:
+      PASSWORD: ${TOR_PASSWORD}
+```
+
+使用如下命令即可启动服务器：
+
+```bash
+docker compose pull
+docker compose up
+```
+
