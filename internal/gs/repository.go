@@ -2,7 +2,11 @@ package gs
 
 import (
 	"context"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+	"log"
+	"os"
 	"time"
 )
 
@@ -12,11 +16,44 @@ type Repository struct {
 	rawConsumeChannel chan uint64
 }
 
-func NewRepository(db *gorm.DB) *Repository {
+func NewRepository(dsn string, logLevel logger.LogLevel) *Repository {
+	db := initDB(dsn, logLevel, "")
 	r := &Repository{db: db, taskUpdateChannel: make(chan Task, 128), rawConsumeChannel: make(chan uint64, 128)}
 	go r.updateTask()
 	go r.recoverRaw()
 	return r
+}
+
+func initDB(dsn string, logLevel logger.LogLevel, filePath string) *gorm.DB {
+	var myLog logger.Writer
+	if filePath != "" {
+		f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+		if err != nil {
+			panic(err)
+		}
+		myLog = log.New(f, "\r\n", log.LstdFlags)
+	} else {
+		myLog = log.New(os.Stdout, "\r\n", log.LstdFlags)
+	}
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		Logger: logger.New(
+			myLog, // io writer
+			logger.Config{
+				SlowThreshold:             time.Second, // Slow SQL threshold
+				LogLevel:                  logLevel,    // Log level
+				IgnoreRecordNotFoundError: true,        // Ignore ErrRecordNotFound error for logger
+				Colorful:                  false,       // Disable color
+			},
+		),
+	})
+	if err != nil {
+		panic(err)
+	}
+	err = db.AutoMigrate(&Task{}, &Raw{})
+	if err != nil {
+		panic(err)
+	}
+	return db
 }
 func (r *Repository) updateTask() {
 	ticker := time.NewTicker(time.Second * 1)
@@ -63,7 +100,9 @@ func (r *Repository) ListRaws(ctx context.Context, tag string, limit uint32) ([]
 		//for i := range raws {
 		//	idList[i] = raws[i].ID
 		//}
-		r.db.Delete(&raws)
+		if len(raws) != 0 {
+			r.db.Delete(&raws)
+		}
 		return nil
 	})
 	if err != nil {
@@ -76,19 +115,29 @@ func (r *Repository) ConsumePendingTasks(ctx context.Context, limit uint32) ([]T
 		limit = 10
 	}
 	var tasks []Task
-	if err := r.db.WithContext(ctx).Where("next < ?", time.Now().UTC().Unix()).Limit(int(limit)).Find(&tasks).Error; err != nil {
-		return nil, err
-	} else {
-		if len(tasks) != 0 {
-			next := uint64(time.Now().UTC().Add(time.Second * 30).Unix())
-			idList := make([]uint64, len(tasks))
-			for i := range tasks {
-				idList[i] = tasks[i].ID
+	err := r.db.WithContext(ctx).Transaction(
+		func(tx *gorm.DB) error {
+			if err := tx.Where("next < ?", time.Now().UTC().Unix()).Limit(int(limit)).Find(&tasks).Error; err != nil {
+				return err
 			}
-			r.db.WithContext(ctx).Model(&Task{}).Where("id in ?", idList).Update("next", next)
-		}
-		return tasks, nil
+			if len(tasks) != 0 {
+				next := uint64(time.Now().UTC().Add(time.Second * 30).Unix())
+				idList := make([]uint64, len(tasks))
+				for i := range tasks {
+					idList[i] = tasks[i].ID
+				}
+				err := tx.Model(&Task{}).Where("id IN ?", idList).Update("next", next).Error
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	)
+	if err != nil {
+		return nil, err
 	}
+	return tasks, nil
 }
 
 func (r *Repository) SaveRaw(tag string, url string, data []byte) error {

@@ -10,14 +10,12 @@ import (
 	"github.com/wybiral/torgo"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"io"
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -140,26 +138,9 @@ func NewDefaultServer() *Server {
 func NewServer(cfg *Config) *Server {
 	variables.Init()
 	logLevel := getLogLevel(cfg)
-	db, err := gorm.Open(sqlite.Open(cfg.DSN), &gorm.Config{
-		Logger: logger.New(
-			log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
-			logger.Config{
-				SlowThreshold:             time.Second, // Slow SQL threshold
-				LogLevel:                  logLevel,    // Log level
-				IgnoreRecordNotFoundError: true,        // Ignore ErrRecordNotFound error for logger
-				Colorful:                  true,        // Disable color
-			},
-		),
-	})
-	if err != nil {
-		panic(err)
-	}
-	err = db.AutoMigrate(&Task{}, &Raw{})
-	if err != nil {
-		panic(err)
-	}
+
 	return &Server{
-		repository:    NewRepository(db),
+		repository:    NewRepository(cfg.DSN, logLevel),
 		collector:     NewCollector(cfg.TorSock5Host, cfg.TorControllerHost, cfg.CollectHandle),
 		collectSpeedo: speedo.NewSpeedometer(speedo.Config{Log: cfg.Debug, Name: "Collect"}),
 		consumeSpeedo: speedo.NewSpeedometer(speedo.Config{Log: cfg.Debug, Name: "Consume"}),
