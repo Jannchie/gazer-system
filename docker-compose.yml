@@ -16,10 +16,11 @@ services:
       TOR_CTL: "proxy:9051"
       PORT: 2000
       DSN: "/data/gazer-system.db"
+      TOR_PASSWORD: ${TOR_PASSWORD}
   proxy:
     image: dperson/torproxy
     expose:
       - 9050
       - 9051
     environment:
-      PASSWORD: 123456
+      PASSWORD: ${TOR_PASSWORD}

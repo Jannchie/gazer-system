@@ -262,7 +262,7 @@ func NewCollector(proxySock5Host, proxyControllerHost string, collect CollectHan
 			continue
 		}
 
-		err = proxyController.AuthenticatePassword("123456")
+		err = proxyController.AuthenticatePassword(*variables.TorPassword)
 		if err != nil {
 			log.Println(err)
 			time.Sleep(time.Second)
