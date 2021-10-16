@@ -63,10 +63,10 @@ docker compose up
 func main() {
 	ctx := context.Background()
   
-  // 定义一个 Worker Group，连接服务器
+	// 定义一个 Worker Group，连接服务器
 	wg := gs.NewWorkerGroup("localhost:2000")
   
-  // 定义一个既能解析，又能发起爬取任务的 Worker
+  	// 定义一个既能解析，又能发起爬取任务的 Worker
 	bwu := gs.NewBothWorker(wg.Client, "test", func(tasks chan<- *api.Task) {
 		tasks <- &api.Task{
 			Url:        "https://pv.sohu.com/cityjson",
@@ -77,9 +77,9 @@ func main() {
 		log.Printf("%+v\n", raw)
 		return nil
 	})
-  // 添加这个 Worker
+	// 添加这个 Worker
 	wg.AddByWorkUnit(bwu)
-  // 跑
+	// 跑
 	wg.Run(ctx)
 }
 ```
