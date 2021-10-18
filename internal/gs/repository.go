@@ -36,6 +36,7 @@ func initDB(dsn string, logLevel logger.LogLevel, filePath string) *gorm.DB {
 		myLog = log.New(os.Stdout, "\r\n", log.LstdFlags)
 	}
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+		SkipDefaultTransaction: true,
 		Logger: logger.New(
 			myLog, // io writer
 			logger.Config{
@@ -112,7 +113,7 @@ func (r *Repository) ListRaws(ctx context.Context, tag string, limit uint32) ([]
 }
 func (r *Repository) ConsumePendingTasks(ctx context.Context, limit uint32) ([]Task, error) {
 	if limit == 0 || limit > 100 {
-		limit = 10
+		limit = 100
 	}
 	var tasks []Task
 	err := r.db.WithContext(ctx).Transaction(

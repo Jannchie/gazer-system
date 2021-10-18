@@ -16,7 +16,7 @@ type SenderUnit interface {
 }
 
 type ParserUnit interface {
-	Parser(raw *api.Raw) error
+	Parser(raw *api.Raw, client api.GazerSystemClient) error
 	GetTargetURL() *url.URL
 	Run(ctx context.Context)
 }
@@ -38,7 +38,7 @@ func NewWorkerGroup(server string) *WorkerGroup {
 	}
 }
 
-func (g *WorkerGroup) AddWorker(targetURL string, sender func(chan<- *api.Task), parser func(*api.Raw) error) {
+func (g *WorkerGroup) AddWorker(targetURL string, sender func(chan<- *api.Task), parser func(*api.Raw, api.GazerSystemClient) error) {
 	g.WorkerList = append(g.WorkerList, NewBothWorker(g.Client, targetURL, sender, parser))
 }
 
@@ -73,7 +73,7 @@ type ParserWorker struct {
 	Client     api.GazerSystemClient
 	Tag        string
 	rawChannel chan *api.Raw
-	Parser     func(*api.Raw) error
+	Parser     func(*api.Raw, api.GazerSystemClient) error
 }
 
 func NewSenderWorker(gazerSystemClient api.GazerSystemClient, sender func(chan<- *api.Task)) *SenderWorker {
@@ -84,7 +84,7 @@ func NewSenderWorker(gazerSystemClient api.GazerSystemClient, sender func(chan<-
 	}
 }
 
-func NewParserWorker(gazerSystemClient api.GazerSystemClient, tag string, parser func(*api.Raw) error) *ParserWorker {
+func NewParserWorker(gazerSystemClient api.GazerSystemClient, tag string, parser func(*api.Raw, api.GazerSystemClient) error) *ParserWorker {
 	return &ParserWorker{
 		Client:     gazerSystemClient,
 		Parser:     parser,
@@ -92,7 +92,7 @@ func NewParserWorker(gazerSystemClient api.GazerSystemClient, tag string, parser
 		Tag:        tag,
 	}
 }
-func NewBothWorker(client api.GazerSystemClient, tag string, sender func(chan<- *api.Task), parser func(*api.Raw) error) *BothWorker {
+func NewBothWorker(client api.GazerSystemClient, tag string, sender func(chan<- *api.Task), parser func(*api.Raw, api.GazerSystemClient) error) *BothWorker {
 	return &BothWorker{
 		Client:       client,
 		SenderWorker: NewSenderWorker(client, sender),
@@ -130,7 +130,7 @@ func (w *ParserWorker) Run(ctx context.Context) {
 					if !ok {
 						return
 					}
-					err := w.Parser(data)
+					err := w.Parser(data, w.Client)
 					if err != nil {
 						log.Println(err)
 						continue
