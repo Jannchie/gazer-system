@@ -16,7 +16,7 @@ type SenderUnit interface {
 }
 
 type ParserUnit interface {
-	Parser(raw *api.Raw, client api.GazerSystemClient) error
+	Parser(raw *api.Raw, client Client) error
 	GetTargetURL() *url.URL
 	Run(ctx context.Context)
 }
@@ -28,7 +28,7 @@ type WorkUnit interface {
 type WorkerGroup struct {
 	WorkerList []WorkUnit
 	Server     string
-	Client     api.GazerSystemClient
+	Client     *Client
 }
 
 func NewWorkerGroup(server string) *WorkerGroup {
@@ -38,7 +38,7 @@ func NewWorkerGroup(server string) *WorkerGroup {
 	}
 }
 
-func (g *WorkerGroup) AddWorker(targetURL string, sender func(chan<- *api.Task), parser func(*api.Raw, api.GazerSystemClient) error) {
+func (g *WorkerGroup) AddWorker(targetURL string, sender func(chan<- *api.Task), parser func(*api.Raw, *Client) error) {
 	g.WorkerList = append(g.WorkerList, NewBothWorker(g.Client, targetURL, sender, parser))
 }
 
@@ -58,33 +58,33 @@ type Worker interface {
 }
 
 type BothWorker struct {
-	Client       api.GazerSystemClient
+	Client       *Client
 	SenderWorker *SenderWorker
 	ParserWorker *ParserWorker
 }
 
 type SenderWorker struct {
-	Client      api.GazerSystemClient
+	Client      *Client
 	taskChannel chan *api.Task
 	Sender      func(chan<- *api.Task)
 }
 
 type ParserWorker struct {
-	Client     api.GazerSystemClient
+	Client     *Client
 	Tag        string
 	rawChannel chan *api.Raw
-	Parser     func(*api.Raw, api.GazerSystemClient) error
+	Parser     func(*api.Raw, *Client) error
 }
 
-func NewSenderWorker(gazerSystemClient api.GazerSystemClient, sender func(chan<- *api.Task)) *SenderWorker {
+func NewSenderWorker(client *Client, sender func(chan<- *api.Task)) *SenderWorker {
 	return &SenderWorker{
-		Client:      gazerSystemClient,
+		Client:      client,
 		Sender:      sender,
 		taskChannel: make(chan *api.Task),
 	}
 }
 
-func NewParserWorker(gazerSystemClient api.GazerSystemClient, tag string, parser func(*api.Raw, api.GazerSystemClient) error) *ParserWorker {
+func NewParserWorker(gazerSystemClient *Client, tag string, parser func(*api.Raw, *Client) error) *ParserWorker {
 	return &ParserWorker{
 		Client:     gazerSystemClient,
 		Parser:     parser,
@@ -92,7 +92,7 @@ func NewParserWorker(gazerSystemClient api.GazerSystemClient, tag string, parser
 		Tag:        tag,
 	}
 }
-func NewBothWorker(client api.GazerSystemClient, tag string, sender func(chan<- *api.Task), parser func(*api.Raw, api.GazerSystemClient) error) *BothWorker {
+func NewBothWorker(client *Client, tag string, sender func(chan<- *api.Task), parser func(*api.Raw, *Client) error) *BothWorker {
 	return &BothWorker{
 		Client:       client,
 		SenderWorker: NewSenderWorker(client, sender),

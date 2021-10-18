@@ -26,7 +26,7 @@ func (c *Client) SendTasks(tasks []*api.Task) error {
 	return nil
 }
 
-func NewClient(server string) api.GazerSystemClient {
+func NewClient(server string) *Client {
 	opts := []grpc.DialOption{
 		grpc.WithInsecure(),
 	}
