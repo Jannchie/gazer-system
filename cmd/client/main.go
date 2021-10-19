@@ -16,14 +16,14 @@ func main() {
 			Tag:        "test",
 			IntervalMS: 0,
 		}
-	}, func(raw *api.Raw) error {
+	}, func(raw *api.Raw, _ *gs.Client) error {
 		log.Printf("%+v\n", raw)
 		return nil
 	})
 
 	wg.AddByWorkUnit(bwu)
 
-	wg.AddByWorkUnit(gs.NewParserWorker(wg.Client, "?", func(raw *api.Raw) error {
+	wg.AddByWorkUnit(gs.NewParserWorker(wg.Client, "?", func(raw *api.Raw, _ *gs.Client) error {
 		log.Println(raw)
 		return nil
 	}))

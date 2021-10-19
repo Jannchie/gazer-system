@@ -59,7 +59,7 @@ func initDB(dsn string, logLevel logger.LogLevel, filePath string) *gorm.DB {
 func (r *Repository) updateTask() {
 	ticker := time.NewTicker(time.Second * 1)
 	deleteList := make([]uint64, 0, 100)
-	updateList := make([]uint64, 0, 100)
+	updateList := make([]Task, 0, 100)
 	consumeList := make([]uint64, 0, 100)
 	for {
 		select {
@@ -69,7 +69,9 @@ func (r *Repository) updateTask() {
 				deleteList = deleteList[:0]
 			}
 			if len(updateList) != 0 {
-				r.db.Where("id IN ?", updateList).Update("next", time.Now().UTC().Unix())
+				for _, task := range updateList {
+					r.db.Where("id = ?", task.ID).Update("next", time.Now().UTC().Add(time.Millisecond*time.Duration(task.IntervalMS)).Unix())
+				}
 				updateList = updateList[:0]
 			}
 			if len(consumeList) != 0 {
@@ -80,7 +82,7 @@ func (r *Repository) updateTask() {
 			if task.IntervalMS == 0 {
 				deleteList = append(deleteList, task.ID)
 			} else {
-				updateList = append(updateList, task.ID)
+				updateList = append(updateList, task)
 			}
 		case raw := <-r.rawConsumeChannel:
 			consumeList = append(consumeList, raw)
@@ -88,7 +90,25 @@ func (r *Repository) updateTask() {
 	}
 }
 func (r *Repository) AddTasks(ctx context.Context, tasks []Task) error {
-	return r.db.WithContext(ctx).Create(&tasks).Error
+	for _, task := range tasks {
+		var tempTask Task
+		if err := r.db.WithContext(ctx).Find(&tempTask, "url = ?", task.URL).Error; err != nil {
+			if tempTask.ID == 0 {
+				// No previous
+				if err := r.db.WithContext(ctx).Save(&task).Error; err != nil {
+					log.Println(err)
+				}
+			} else if tempTask.IntervalMS > task.IntervalMS && task.IntervalMS != 0 ||
+				tempTask.IntervalMS == 0 && task.IntervalMS != 0 {
+				if err := r.db.WithContext(ctx).Model(&task).
+					Where("id = ?", tempTask.ID).
+					Update("interval_ms", task.IntervalMS).Error; err != nil {
+					log.Println(err)
+				}
+			}
+		}
+	}
+	return r.db.WithContext(ctx).Save(&tasks).Error
 }
 func (r *Repository) ListRaws(ctx context.Context, tag string, limit uint32) ([]Raw, error) {
 	var raws []Raw
@@ -118,7 +138,7 @@ func (r *Repository) ConsumePendingTasks(ctx context.Context, limit uint32) ([]T
 	var tasks []Task
 	err := r.db.WithContext(ctx).Transaction(
 		func(tx *gorm.DB) error {
-			if err := tx.Where("next < ?", time.Now().UTC().Unix()).Limit(int(limit)).Find(&tasks).Error; err != nil {
+			if err := tx.Where("next < ?", time.Now().UTC().Unix()).Order("next ASC").Limit(int(limit)).Find(&tasks).Error; err != nil {
 				return err
 			}
 			if len(tasks) != 0 {

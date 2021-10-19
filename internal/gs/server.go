@@ -170,6 +170,8 @@ func (s *Server) serve() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 	var opts []grpc.ServerOption
+	opts = append(opts, grpc.MaxSendMsgSize(10000000))
+	opts = append(opts, grpc.MaxRecvMsgSize(10000000))
 	grpcServer := grpc.NewServer(opts...)
 	api.RegisterGazerSystemServer(grpcServer, s)
 	log.Println("* * * * * * * * * * * *")

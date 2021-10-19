@@ -29,7 +29,9 @@ func (c *Client) SendTasks(tasks []*api.Task) error {
 func NewClient(server string) *Client {
 	opts := []grpc.DialOption{
 		grpc.WithInsecure(),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(100*1024*1024)),
 	}
+
 	conn, err := grpc.Dial(server, opts...)
 	if err != nil {
 		panic(err)
