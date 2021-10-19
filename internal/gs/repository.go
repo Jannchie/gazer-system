@@ -70,7 +70,7 @@ func (r *Repository) updateTask() {
 			}
 			if len(updateList) != 0 {
 				for _, task := range updateList {
-					r.db.Where("id = ?", task.ID).Update("next", time.Now().UTC().Add(time.Millisecond*time.Duration(task.IntervalMS)).Unix())
+					r.db.Model(&Task{}).Where("id = ?", task.ID).Update("next", time.Now().UTC().Add(time.Millisecond*time.Duration(task.IntervalMS)).Unix())
 				}
 				updateList = updateList[:0]
 			}
