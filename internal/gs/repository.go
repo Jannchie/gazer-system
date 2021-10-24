@@ -160,7 +160,7 @@ func (r *Repository) ConsumePendingTasks(ctx context.Context, limit uint32) ([]T
 				for i := range tasks {
 					idList[i] = tasks[i].ID
 				}
-				err := tx.Model(&Task{}).Where("id IN ?", idList).Update("next", next).Error
+				err := tx.Model(&tasks).Where("id IN ?", idList).Update("next", next).Error
 				if err != nil {
 					return err
 				}
