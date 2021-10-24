@@ -11,18 +11,19 @@ import (
 )
 
 type SenderUnit interface {
+	WorkUnit
 	Sender(chan<- string)
-	Run(ctx context.Context)
 }
 
 type ParserUnit interface {
+	WorkUnit
 	Parser(raw *api.Raw, client Client) error
 	GetTargetURL() *url.URL
-	Run(ctx context.Context)
 }
 
 type WorkUnit interface {
 	Run(ctx context.Context)
+	GetName() string
 }
 
 type WorkerGroup struct {
@@ -61,26 +62,34 @@ type BothWorker struct {
 	Client       *Client
 	SenderWorker *SenderWorker
 	ParserWorker *ParserWorker
+	name         string
+}
+
+func (w *BothWorker) GetName() string {
+	return w.name
 }
 
 type SenderWorker struct {
+	name        string
 	Client      *Client
-	taskChannel chan *api.Task
+	TaskChannel chan *api.Task
 	Sender      func(chan<- *api.Task)
 }
 
 type ParserWorker struct {
+	name       string
 	Client     *Client
 	Tag        string
 	rawChannel chan *api.Raw
 	Parser     func(*api.Raw, *Client) error
 }
 
-func NewSenderWorker(client *Client, sender func(chan<- *api.Task)) *SenderWorker {
+func NewSenderWorker(client *Client, name string, sender func(chan<- *api.Task)) *SenderWorker {
 	return &SenderWorker{
 		Client:      client,
 		Sender:      sender,
-		taskChannel: make(chan *api.Task),
+		TaskChannel: make(chan *api.Task),
+		name:        name,
 	}
 }
 
@@ -92,19 +101,27 @@ func NewParserWorker(gazerSystemClient *Client, tag string, parser func(*api.Raw
 		Tag:        tag,
 	}
 }
+func (p *ParserWorker) GetName() string {
+	return p.Tag
+}
+
+func (s *SenderWorker) GetName() string {
+	return s.name
+}
+
 func NewBothWorker(client *Client, tag string, sender func(chan<- *api.Task), parser func(*api.Raw, *Client) error) *BothWorker {
 	return &BothWorker{
 		Client:       client,
-		SenderWorker: NewSenderWorker(client, sender),
+		SenderWorker: NewSenderWorker(client, tag, sender),
 		ParserWorker: NewParserWorker(client, tag, parser),
 	}
 }
 
-func (w *ParserWorker) Run(ctx context.Context) {
-	if w.Tag != "" {
+func (p *ParserWorker) Run(ctx context.Context) {
+	if p.Tag != "" {
 		go func() {
 			for {
-				dataList, err := w.Client.ListRaws(context.Background(), &api.ListRawsReq{Tag: w.Tag})
+				dataList, err := p.Client.ListRaws(context.Background(), &api.ListRawsReq{Tag: p.Tag})
 				if err != nil {
 					log.Println(err)
 					time.Sleep(time.Second)
@@ -115,7 +132,7 @@ func (w *ParserWorker) Run(ctx context.Context) {
 					time.Sleep(time.Second)
 				} else {
 					for _, data := range raws {
-						w.rawChannel <- data
+						p.rawChannel <- data
 					}
 				}
 			}
@@ -123,14 +140,14 @@ func (w *ParserWorker) Run(ctx context.Context) {
 		}()
 		go func() {
 			// 消费 RAW 通道
-			s := speedo.NewSpeedometer(speedo.Config{Name: "Parser", Log: true})
+			s := speedo.NewSpeedometer(speedo.Config{Name: p.GetName() + " Parser", Log: true})
 			for {
 				select {
-				case data, ok := <-w.rawChannel:
+				case data, ok := <-p.rawChannel:
 					if !ok {
 						return
 					}
-					err := w.Parser(data, w.Client)
+					err := p.Parser(data, p.Client)
 					if err != nil {
 						log.Println(err)
 						continue
@@ -139,7 +156,7 @@ func (w *ParserWorker) Run(ctx context.Context) {
 							log.Println(err)
 							continue
 						}
-						_, err = w.Client.ConsumeRaws(ctx, &api.ConsumeRawsReq{IdList: []uint64{data.GetId()}})
+						_, err = p.Client.ConsumeRaws(ctx, &api.ConsumeRawsReq{IdList: []uint64{data.GetId()}})
 						if err != nil {
 							log.Println(err)
 							continue
@@ -151,36 +168,36 @@ func (w *ParserWorker) Run(ctx context.Context) {
 		}()
 	}
 	<-ctx.Done()
-	close(w.rawChannel)
+	close(p.rawChannel)
 }
 
-func (w *SenderWorker) Run(ctx context.Context) {
+func (s *SenderWorker) Run(ctx context.Context) {
 	go func() {
-		s := speedo.NewSpeedometer(speedo.Config{Name: "Sender", Log: true})
-		// 消费 URL 通道
+		speedometer := speedo.NewSpeedometer(speedo.Config{Name: s.GetName() + " Sender", Log: true})
+		// 消费 URL 通道Î
 		for {
 			select {
-			case task, ok := <-w.taskChannel:
+			case task, ok := <-s.TaskChannel:
 				if !ok {
 					return
 				}
-				_, err := w.Client.AddTasks(context.Background(), &api.AddTasksReq{Tasks: []*api.Task{task}})
+				_, err := s.Client.AddTasks(context.Background(), &api.AddTasksReq{Tasks: []*api.Task{task}})
 				if err != nil {
 					log.Println(err)
 					time.Sleep(time.Second)
 					continue
 				} else {
-					s.AddCount(1)
+					speedometer.AddCount(1)
 				}
 			}
 		}
 	}()
 	go func() {
 		// 填 URL 通道
-		w.Sender(w.taskChannel)
+		s.Sender(s.TaskChannel)
 	}()
 	<-ctx.Done()
-	close(w.taskChannel)
+	close(s.TaskChannel)
 }
 func (w *BothWorker) Run(ctx context.Context) {
 	go w.ParserWorker.Run(ctx)
