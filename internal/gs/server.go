@@ -24,6 +24,7 @@ type Server struct {
 	collector     *Collector
 	collectSpeedo *speedo.Speedometer
 	consumeSpeedo *speedo.Speedometer
+	receiveSpeedo *speedo.Speedometer
 }
 
 func (s *Server) ConsumeRaws(_ context.Context, req *api.ConsumeRawsReq) (*api.OperationResp, error) {
@@ -83,10 +84,11 @@ func (s *Server) AddTasks(ctx context.Context, req *api.AddTasksReq) (*api.Opera
 		tasks[i].Tag = req.Tasks[i].Tag
 		tasks[i].IntervalMS = req.Tasks[i].IntervalMS
 	}
-	err := s.repository.AddTasks(ctx, tasks)
+	count, err := s.repository.AddTasks(ctx, tasks)
 	if err != nil {
 		return nil, err
 	}
+	s.receiveSpeedo.AddCount(count)
 	return &api.OperationResp{Code: 1, Msg: "ok"}, nil
 }
 
@@ -144,6 +146,7 @@ func NewServer(cfg *Config) *Server {
 		collector:     NewCollector(cfg.TorSock5Host, cfg.TorControllerHost, cfg.CollectHandle),
 		collectSpeedo: speedo.NewSpeedometer(speedo.Config{Log: cfg.Debug, Name: "Collect"}),
 		consumeSpeedo: speedo.NewSpeedometer(speedo.Config{Log: cfg.Debug, Name: "Consume"}),
+		receiveSpeedo: speedo.NewSpeedometer(speedo.Config{Log: cfg.Debug, Name: "Receive"}),
 	}
 }
 
