@@ -90,27 +90,38 @@ func (r *Repository) updateTask() {
 		}
 	}
 }
-func (r *Repository) AddTasks(ctx context.Context, tasks []Task) error {
+func (r *Repository) AddTasks(ctx context.Context, tasks []Task) (uint64, error) {
 	var err error
+	var count uint64
 	for _, task := range tasks {
 		var tempTask Task
 		if err = r.db.WithContext(ctx).Find(&tempTask, "url = ?", task.URL).Error; err != nil {
+			return 0, err
+		} else {
 			if tempTask.ID == 0 {
 				// No previous
-				if err = r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&task).Error; err != nil {
+				if res := r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&task); res.Error != nil {
 					log.Println(err)
+				} else {
+					count += uint64(res.RowsAffected)
 				}
 			} else if tempTask.IntervalMS > task.IntervalMS && task.IntervalMS != 0 ||
 				tempTask.IntervalMS == 0 && task.IntervalMS != 0 {
-				if err := r.db.WithContext(ctx).Model(&task).
+				if res := r.db.WithContext(ctx).Model(&task).
 					Where("id = ?", tempTask.ID).
-					Update("interval_ms", task.IntervalMS).Error; err != nil {
+					Update("interval_ms", task.IntervalMS); res.Error != nil {
 					log.Println(err)
+				} else {
+					count += uint64(res.RowsAffected)
 				}
 			}
 		}
 	}
-	return err
+	if err != nil {
+		return 0, err
+	} else {
+		return count, nil
+	}
 }
 func (r *Repository) ListRaws(ctx context.Context, tag string, limit uint32) ([]Raw, error) {
 	var raws []Raw
