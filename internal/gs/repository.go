@@ -4,6 +4,7 @@ import (
 	"context"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 	"log"
 	"os"
@@ -90,12 +91,13 @@ func (r *Repository) updateTask() {
 	}
 }
 func (r *Repository) AddTasks(ctx context.Context, tasks []Task) error {
+	var err error
 	for _, task := range tasks {
 		var tempTask Task
-		if err := r.db.WithContext(ctx).Find(&tempTask, "url = ?", task.URL).Error; err != nil {
+		if err = r.db.WithContext(ctx).Find(&tempTask, "url = ?", task.URL).Error; err != nil {
 			if tempTask.ID == 0 {
 				// No previous
-				if err := r.db.WithContext(ctx).Save(&task).Error; err != nil {
+				if err = r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&task).Error; err != nil {
 					log.Println(err)
 				}
 			} else if tempTask.IntervalMS > task.IntervalMS && task.IntervalMS != 0 ||
@@ -108,7 +110,7 @@ func (r *Repository) AddTasks(ctx context.Context, tasks []Task) error {
 			}
 		}
 	}
-	return r.db.WithContext(ctx).Save(&tasks).Error
+	return err
 }
 func (r *Repository) ListRaws(ctx context.Context, tag string, limit uint32) ([]Raw, error) {
 	var raws []Raw

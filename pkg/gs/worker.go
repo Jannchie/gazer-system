@@ -164,11 +164,13 @@ func (w *SenderWorker) Run(ctx context.Context) {
 				if !ok {
 					return
 				}
-				s.AddCount(1)
 				_, err := w.Client.AddTasks(context.Background(), &api.AddTasksReq{Tasks: []*api.Task{task}})
 				if err != nil {
 					log.Println(err)
+					time.Sleep(time.Second)
 					continue
+				} else {
+					s.AddCount(1)
 				}
 			}
 		}
