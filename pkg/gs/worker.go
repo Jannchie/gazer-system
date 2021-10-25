@@ -32,10 +32,9 @@ type WorkerGroup struct {
 	Client     *Client
 }
 
-func NewWorkerGroup(server string) *WorkerGroup {
+func NewWorkerGroup(servers ...string) *WorkerGroup {
 	return &WorkerGroup{
-		Server: server,
-		Client: NewClient(server),
+		Client: NewClientWithLB(servers...),
 	}
 }
 
