@@ -2,6 +2,7 @@ package gs
 
 import (
 	"context"
+	"fmt"
 	"github.com/jannchie/gazer-system/api"
 	"google.golang.org/grpc"
 )
@@ -29,10 +30,24 @@ func (c *Client) SendTasks(tasks []*api.Task) error {
 func NewClient(server string) *Client {
 	opts := []grpc.DialOption{
 		grpc.WithInsecure(),
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(100*1024*1024)),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(100 * 1024 * 1024)),
 	}
 
 	conn, err := grpc.Dial(server, opts...)
+	if err != nil {
+		panic(err)
+	}
+	return &Client{GazerSystemClient: api.NewGazerSystemClient(conn)}
+}
+
+func NewClientWithLB(servers ...string) *Client {
+	RegisterServers(servers)
+	opts := []grpc.DialOption{
+		grpc.WithInsecure(),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(100 * 1024 * 1024)),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
+	}
+	conn, err := grpc.Dial(fmt.Sprintf("gs:///gazer-system"), opts...)
 	if err != nil {
 		panic(err)
 	}
