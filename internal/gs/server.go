@@ -153,7 +153,7 @@ func NewServer(cfg *Config) *Server {
 func getLogLevel(cfg *Config) logger.LogLevel {
 	var logLevel logger.LogLevel
 	if cfg.Debug {
-		logLevel = logger.Info
+		logLevel = logger.Warn
 	} else {
 		logLevel = logger.Silent
 	}
