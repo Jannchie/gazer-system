@@ -53,8 +53,8 @@ type Raw struct {
 }
 
 func (s *Server) ListRaws(ctx context.Context, req *api.ListRawsReq) (*api.RawsResp, error) {
-	if req.Limit > 50 || req.Limit == 0 {
-		req.Limit = 50
+	if req.Limit > 20 || req.Limit == 0 {
+		req.Limit = 20
 	}
 	raws, err := s.repository.ListRaws(ctx, req.Tag, req.Limit)
 	if err != nil {
@@ -144,16 +144,16 @@ func NewServer(cfg *Config) *Server {
 	return &Server{
 		repository:    NewRepository(cfg.DSN, logLevel),
 		collector:     NewCollector(cfg.TorSock5Host, cfg.TorControllerHost, cfg.CollectHandle),
-		collectSpeedo: speedo.NewSpeedometer(speedo.Config{Log: cfg.Debug, Name: "Collect"}),
-		consumeSpeedo: speedo.NewSpeedometer(speedo.Config{Log: cfg.Debug, Name: "Consume"}),
-		receiveSpeedo: speedo.NewSpeedometer(speedo.Config{Log: cfg.Debug, Name: "Receive"}),
+		collectSpeedo: speedo.NewSpeedometer(speedo.Config{Log: false, Name: "Collect"}),
+		consumeSpeedo: speedo.NewSpeedometer(speedo.Config{Log: false, Name: "Consume"}),
+		receiveSpeedo: speedo.NewSpeedometer(speedo.Config{Log: false, Name: "Receive"}),
 	}
 }
 
 func getLogLevel(cfg *Config) logger.LogLevel {
 	var logLevel logger.LogLevel
 	if cfg.Debug {
-		logLevel = logger.Silent
+		logLevel = logger.Info
 	} else {
 		logLevel = logger.Silent
 	}

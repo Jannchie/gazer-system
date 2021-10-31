@@ -119,6 +119,7 @@ func NewBothWorker(client *Client, tag string, sender func(chan<- *api.Task), pa
 func (p *ParserWorker) Run(ctx context.Context) {
 	if p.Tag != "" {
 		go func() {
+			// 填 Raw 通道
 			for {
 				dataList, err := p.Client.ListRaws(context.Background(), &api.ListRawsReq{Tag: p.Tag})
 				if err != nil {
@@ -135,11 +136,10 @@ func (p *ParserWorker) Run(ctx context.Context) {
 					}
 				}
 			}
-			// 填 Raw 通道
 		}()
 		go func() {
 			// 消费 RAW 通道
-			s := speedo.NewSpeedometer(speedo.Config{Name: p.GetName() + " Parser", Log: true})
+			s := speedo.NewSpeedometer(speedo.Config{Name: p.GetName() + " Parser", Log: false})
 			for {
 				select {
 				case data, ok := <-p.rawChannel:
@@ -173,7 +173,7 @@ func (p *ParserWorker) Run(ctx context.Context) {
 func (s *SenderWorker) Run(ctx context.Context) {
 	go func() {
 		speedometer := speedo.NewSpeedometer(speedo.Config{Name: s.GetName() + " Sender", Log: true})
-		// 消费 URL 通道Î
+		// 消费 URL 通道
 		for {
 			select {
 			case task, ok := <-s.TaskChannel:
