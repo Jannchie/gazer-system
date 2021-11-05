@@ -176,7 +176,9 @@ func (r *Repository) ConsumePendingTasks(ctx context.Context, limit uint32) ([]T
 
 func (r *Repository) SaveRaw(tag string, url string, data []byte) error {
 	now := time.Now().UTC()
-	return r.db.Create(&Raw{
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	return r.db.WithContext(ctx).Create(&Raw{
 		URL:       url,
 		Tag:       tag,
 		Data:      data,
@@ -207,7 +209,9 @@ func (r *Repository) recoverRaw() {
 	for {
 		select {
 		case <-ticker.C:
-			r.db.Unscoped().Model(&Raw{}).Where("deleted_at < ?", time.Now().Add(-time.Second*30)).Update("deleted_at", nil)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+			r.db.WithContext(ctx).Unscoped().Model(&Raw{}).Where("deleted_at < ?", time.Now().Add(-time.Second*30)).Update("deleted_at", nil)
+			cancel()
 		}
 	}
 }

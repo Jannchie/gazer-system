@@ -121,7 +121,9 @@ func (p *ParserWorker) Run(ctx context.Context) {
 		go func() {
 			// 填 Raw 通道
 			for {
-				dataList, err := p.Client.ListRaws(context.Background(), &api.ListRawsReq{Tag: p.Tag})
+				timeoutCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+				dataList, err := p.Client.ListRaws(timeoutCtx, &api.ListRawsReq{Tag: p.Tag})
+				cancel()
 				if err != nil {
 					log.Println(err)
 					time.Sleep(time.Second)
@@ -155,7 +157,9 @@ func (p *ParserWorker) Run(ctx context.Context) {
 							log.Println(err)
 							continue
 						}
-						_, err = p.Client.ConsumeRaws(ctx, &api.ConsumeRawsReq{IdList: []uint64{data.GetId()}})
+						timeoutCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+						_, err = p.Client.ConsumeRaws(timeoutCtx, &api.ConsumeRawsReq{IdList: []uint64{data.GetId()}})
+						cancel()
 						if err != nil {
 							log.Println(err)
 							continue
