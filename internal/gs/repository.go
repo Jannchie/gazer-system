@@ -76,7 +76,11 @@ func (r *Repository) updateTask() {
 				updateList = updateList[:0]
 			}
 			if len(consumeList) != 0 {
-				r.db.Unscoped().Where("id IN ?", consumeList).Delete(&Raw{})
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+				if err := r.db.WithContext(ctx).Unscoped().Where("id IN ?", consumeList).Delete(&Raw{}).Error; err != nil {
+					log.Println(err)
+				}
+				cancel()
 				consumeList = consumeList[:0]
 			}
 		case task := <-r.taskUpdateChannel:
@@ -126,7 +130,7 @@ func (r *Repository) AddTasks(ctx context.Context, tasks []Task) (uint64, error)
 func (r *Repository) ListRaws(ctx context.Context, tag string, limit uint32) ([]Raw, error) {
 	var raws []Raw
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := r.db.Where("tag = ?", tag).Limit(int(limit)).Find(&raws).Error
+		err := r.db.WithContext(ctx).Where("tag = ?", tag).Limit(int(limit)).Find(&raws).Error
 		if err != nil {
 			return err
 		}
@@ -135,7 +139,7 @@ func (r *Repository) ListRaws(ctx context.Context, tag string, limit uint32) ([]
 		//	idList[i] = raws[i].ID
 		//}
 		if len(raws) != 0 {
-			r.db.Delete(&raws)
+			r.db.WithContext(ctx).Delete(&raws)
 		}
 		return nil
 	})

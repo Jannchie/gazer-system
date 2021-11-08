@@ -56,7 +56,9 @@ func (s *Server) ListRaws(ctx context.Context, req *api.ListRawsReq) (*api.RawsR
 	if req.Limit > 20 || req.Limit == 0 {
 		req.Limit = 20
 	}
-	raws, err := s.repository.ListRaws(ctx, req.Tag, req.Limit)
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+	raws, err := s.repository.ListRaws(timeoutCtx, req.Tag, req.Limit)
+	cancel()
 	if err != nil {
 		return nil, err
 	}
