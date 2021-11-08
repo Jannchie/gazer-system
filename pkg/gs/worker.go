@@ -64,6 +64,8 @@ func (g *WorkerGroup) AddWorker(targetURL string, sender func(chan<- *api.Task),
 	bw := NewBothWorker(g.Client, targetURL, sender, parser, options...)
 	if len(options) == 0 {
 		bw.cfg = g.cfg
+		bw.SenderWorker.cfg = g.cfg
+		bw.ParserWorker.cfg = g.cfg
 	}
 	g.WorkerList = append(g.WorkerList, bw)
 }
@@ -99,7 +101,12 @@ func (w *BothWorker) GetName() string {
 func (w *BothWorker) SetConfig(cfg *WorkerConfig) {
 	w.cfg = cfg
 }
-
+func (p *ParserWorker) SetConfig(cfg *WorkerConfig) {
+	p.cfg = cfg
+}
+func (s *SenderWorker) SetConfig(cfg *WorkerConfig) {
+	s.cfg = cfg
+}
 type SenderWorker struct {
 	name        string
 	cfg         *WorkerConfig
@@ -118,7 +125,6 @@ type ParserWorker struct {
 }
 
 func NewSenderWorker(client *Client, name string, sender func(chan<- *api.Task), options ...WorkerOptions) *SenderWorker {
-
 	return &SenderWorker{
 		Client:      client,
 		Sender:      sender,
@@ -241,6 +247,8 @@ func (s *SenderWorker) Run(ctx context.Context) {
 	close(s.TaskChannel)
 }
 func (w *BothWorker) Run(ctx context.Context) {
+	w.ParserWorker.cfg = w.cfg
+	w.SenderWorker.cfg = w.cfg
 	go w.ParserWorker.Run(ctx)
 	go w.SenderWorker.Run(ctx)
 	<-ctx.Done()
