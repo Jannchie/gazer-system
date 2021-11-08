@@ -10,6 +10,25 @@ import (
 	"github.com/jannchie/speedo"
 )
 
+type WorkerOptions func(*WorkerConfig)
+
+type WorkerConfig struct {
+	Debug             bool
+	SpeedometerServer string
+}
+
+func WithDebug(debug bool) WorkerOptions {
+	return func(c *WorkerConfig) {
+		c.Debug = debug
+	}
+}
+
+func WithSpeedometerServer(server string) WorkerOptions {
+	return func(c *WorkerConfig) {
+		c.SpeedometerServer = server
+	}
+}
+
 type SenderUnit interface {
 	WorkUnit
 	Sender(chan<- string)
@@ -24,26 +43,34 @@ type ParserUnit interface {
 type WorkUnit interface {
 	Run(ctx context.Context)
 	GetName() string
+	SetConfig(cfg *WorkerConfig)
 }
 
 type WorkerGroup struct {
 	WorkerList []WorkUnit
 	Server     string
 	Client     *Client
+	cfg        *WorkerConfig
 }
 
-func NewWorkerGroup(servers ...string) *WorkerGroup {
+func NewWorkerGroup(servers []string, options ...WorkerOptions) *WorkerGroup {
 	return &WorkerGroup{
 		Client: NewClientWithLB(servers...),
+		cfg:    getConfig(options),
 	}
 }
 
-func (g *WorkerGroup) AddWorker(targetURL string, sender func(chan<- *api.Task), parser func(*api.Raw, *Client) error) {
-	g.WorkerList = append(g.WorkerList, NewBothWorker(g.Client, targetURL, sender, parser))
+func (g *WorkerGroup) AddWorker(targetURL string, sender func(chan<- *api.Task), parser func(*api.Raw, *Client) error, options ...WorkerOptions) {
+	bw := NewBothWorker(g.Client, targetURL, sender, parser, options...)
+	if len(options) == 0 {
+		bw.cfg = g.cfg
+	}
+	g.WorkerList = append(g.WorkerList, bw)
 }
 
 func (g *WorkerGroup) AddByWorkUnit(w WorkUnit) {
 	g.WorkerList = append(g.WorkerList, w)
+	w.SetConfig(g.cfg)
 }
 
 func (g *WorkerGroup) Run(ctx context.Context) {
@@ -62,14 +89,20 @@ type BothWorker struct {
 	SenderWorker *SenderWorker
 	ParserWorker *ParserWorker
 	name         string
+	cfg          *WorkerConfig
 }
 
 func (w *BothWorker) GetName() string {
 	return w.name
 }
 
+func (w *BothWorker) SetConfig(cfg *WorkerConfig) {
+	w.cfg = cfg
+}
+
 type SenderWorker struct {
 	name        string
+	cfg         *WorkerConfig
 	Client      *Client
 	TaskChannel chan *api.Task
 	Sender      func(chan<- *api.Task)
@@ -77,26 +110,30 @@ type SenderWorker struct {
 
 type ParserWorker struct {
 	name       string
+	cfg        *WorkerConfig
 	Client     *Client
 	Tag        string
 	rawChannel chan *api.Raw
 	Parser     func(*api.Raw, *Client) error
 }
 
-func NewSenderWorker(client *Client, name string, sender func(chan<- *api.Task)) *SenderWorker {
+func NewSenderWorker(client *Client, name string, sender func(chan<- *api.Task), options ...WorkerOptions) *SenderWorker {
+
 	return &SenderWorker{
 		Client:      client,
 		Sender:      sender,
 		TaskChannel: make(chan *api.Task),
 		name:        name,
+		cfg:         getConfig(options),
 	}
 }
 
-func NewParserWorker(gazerSystemClient *Client, tag string, parser func(*api.Raw, *Client) error) *ParserWorker {
+func NewParserWorker(gazerSystemClient *Client, tag string, parser func(*api.Raw, *Client) error, options ...WorkerOptions) *ParserWorker {
 	return &ParserWorker{
 		Client:     gazerSystemClient,
 		Parser:     parser,
 		rawChannel: make(chan *api.Raw),
+		cfg:        getConfig(options),
 		Tag:        tag,
 	}
 }
@@ -108,11 +145,12 @@ func (s *SenderWorker) GetName() string {
 	return s.name
 }
 
-func NewBothWorker(client *Client, tag string, sender func(chan<- *api.Task), parser func(*api.Raw, *Client) error) *BothWorker {
+func NewBothWorker(client *Client, tag string, sender func(chan<- *api.Task), parser func(*api.Raw, *Client) error, options ...WorkerOptions) *BothWorker {
 	return &BothWorker{
 		Client:       client,
-		SenderWorker: NewSenderWorker(client, tag, sender),
-		ParserWorker: NewParserWorker(client, tag, parser),
+		cfg:          getConfig(options),
+		SenderWorker: NewSenderWorker(client, tag, sender, options...),
+		ParserWorker: NewParserWorker(client, tag, parser, options...),
 	}
 }
 
@@ -141,7 +179,7 @@ func (p *ParserWorker) Run(ctx context.Context) {
 		}()
 		go func() {
 			// 消费 RAW 通道
-			s := speedo.NewSpeedometer(speedo.Config{Name: p.GetName() + " Parser", Log: false})
+			s := speedo.NewSpeedometer(speedo.Config{Name: p.GetName() + " Parser", Log: p.cfg.Debug})
 			for {
 				select {
 				case data, ok := <-p.rawChannel:
@@ -176,7 +214,7 @@ func (p *ParserWorker) Run(ctx context.Context) {
 
 func (s *SenderWorker) Run(ctx context.Context) {
 	go func() {
-		speedometer := speedo.NewSpeedometer(speedo.Config{Name: s.GetName() + " Sender", Log: true})
+		speedometer := speedo.NewSpeedometer(speedo.Config{Name: s.GetName() + " Sender", Log: s.cfg.Debug})
 		// 消费 URL 通道
 		for {
 			select {
@@ -206,4 +244,12 @@ func (w *BothWorker) Run(ctx context.Context) {
 	go w.ParserWorker.Run(ctx)
 	go w.SenderWorker.Run(ctx)
 	<-ctx.Done()
+}
+
+func getConfig(options []WorkerOptions) *WorkerConfig {
+	cfg := WorkerConfig{}
+	for _, opt := range options {
+		opt(&cfg)
+	}
+	return &cfg
 }
