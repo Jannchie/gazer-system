@@ -2,13 +2,14 @@ package gs
 
 import (
 	"context"
+	"log"
+	"os"
+	"time"
+
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
-	"log"
-	"os"
-	"time"
 )
 
 type Repository struct {
@@ -51,10 +52,27 @@ func initDB(dsn string, logLevel logger.LogLevel, filePath string) *gorm.DB {
 	if err != nil {
 		panic(err)
 	}
+
+	db.Exec("PRAGMA journal_mode = WAL;")
+	db.Exec("PRAGMA synchronous = NORMAL;")
+	db.Exec("PRAGMA temp_store = MEMORY;")
+	// db.Exec("PRAGMA foreign_keys = ON;")
+	db.Exec("PRAGMA busy_timeout = 60000;")
+	db.Exec("PRAGMA journal_size_limit = 4096000;")
+	go func () {
+		for {
+			db.Exec("VACUUM;")
+			time.Sleep(time.Second * 60 * 60)
+		}
+	}()
+	// db.Exec("PRAGMA case_sensitive_like = 1;")
+	// db.Exec("PRAGMA recursive_triggers = 1;")
+
 	err = db.AutoMigrate(&Task{}, &Raw{})
 	if err != nil {
 		panic(err)
 	}
+
 	return db
 }
 func (r *Repository) updateTask() {
