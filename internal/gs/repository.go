@@ -128,7 +128,7 @@ func (r *Repository) AddTasks(ctx context.Context, tasks []Task) (uint64, error)
 			if tempTask.ID == 0 {
 				// No previous
 				if res := r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&task); res.Error != nil {
-					log.Println(err)
+					log.Println(res.Error)
 					time.Sleep(time.Second)
 				} else {
 					count += uint64(res.RowsAffected)
@@ -181,8 +181,6 @@ func (r *Repository) ConsumePendingTasks(ctx context.Context, limit uint32) ([]T
 	err := r.db.WithContext(ctx).Transaction(
 		func(tx *gorm.DB) error {
 			if err := tx.Where("next < ?", time.Now().UTC().Unix()).Order("next ASC").Limit(int(limit)).Find(&tasks).Error; err != nil {
-				log.Println(err)
-				time.Sleep(time.Second)
 				return err
 			}
 			if len(tasks) != 0 {
@@ -193,8 +191,6 @@ func (r *Repository) ConsumePendingTasks(ctx context.Context, limit uint32) ([]T
 				}
 				err := tx.Model(&tasks).Where("id IN ?", idList).Update("next", next).Error
 				if err != nil {
-					log.Println(err)
-					time.Sleep(time.Second)
 					return err
 				}
 			}
@@ -241,9 +237,9 @@ func (r *Repository) recoverRaw() {
 	ticker := time.NewTicker(time.Second * 10)
 	for range ticker.C {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-		err := r.db.WithContext(ctx).Unscoped().Model(&Raw{}).Where("deleted_at < ?", time.Now().Add(-time.Second*30)).Update("deleted_at", nil)
-		if err != nil {
-			log.Println(err)
+		res := r.db.WithContext(ctx).Unscoped().Model(&Raw{}).Where("deleted_at < ?", time.Now().Add(-time.Second*30)).Update("deleted_at", nil)
+		if res.Error != nil {
+			log.Println(res.Error)
 			time.Sleep(time.Second)
 		}
 		cancel()

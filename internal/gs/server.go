@@ -197,6 +197,7 @@ func (s *Server) addToChan(taskChan chan<- Task) {
 		tasks, err := s.repository.ConsumePendingTasks(context.Background(), 100)
 		if err != nil {
 			log.Println(err)
+			time.Sleep(time.Second)
 			continue
 		}
 		if len(tasks) == 0 {

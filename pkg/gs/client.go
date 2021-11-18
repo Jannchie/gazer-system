@@ -2,7 +2,7 @@ package gs
 
 import (
 	"context"
-	"fmt"
+
 	"github.com/jannchie/gazer-system/api"
 	"google.golang.org/grpc"
 )
@@ -47,7 +47,7 @@ func NewClientWithLB(servers ...string) *Client {
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(100 * 1024 * 1024)),
 		grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
 	}
-	conn, err := grpc.Dial(fmt.Sprintf("gs:///gazer-system"), opts...)
+	conn, err := grpc.Dial("gs:///gazer-system", opts...)
 	if err != nil {
 		panic(err)
 	}

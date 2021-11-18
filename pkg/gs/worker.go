@@ -2,10 +2,11 @@ package gs
 
 import (
 	"context"
-	"github.com/jannchie/gazer-system/api"
 	"log"
 	"net/url"
 	"time"
+
+	"github.com/jannchie/gazer-system/api"
 
 	"github.com/jannchie/speedo"
 )
@@ -107,6 +108,7 @@ func (p *ParserWorker) SetConfig(cfg *WorkerConfig) {
 func (s *SenderWorker) SetConfig(cfg *WorkerConfig) {
 	s.cfg = cfg
 }
+
 type SenderWorker struct {
 	name        string
 	cfg         *WorkerConfig
@@ -116,7 +118,6 @@ type SenderWorker struct {
 }
 
 type ParserWorker struct {
-	name       string
 	cfg        *WorkerConfig
 	Client     *Client
 	Tag        string
@@ -186,30 +187,24 @@ func (p *ParserWorker) Run(ctx context.Context) {
 		go func() {
 			// 消费 RAW 通道
 			s := speedo.NewSpeedometer(speedo.Config{Name: p.GetName() + " Parser", Log: p.cfg.Debug})
-			for {
-				select {
-				case data, ok := <-p.rawChannel:
-					if !ok {
-						return
-					}
-					err := p.Parser(data, p.Client)
+			for data := range p.rawChannel {
+				err := p.Parser(data, p.Client)
+				if err != nil {
+					log.Println(err)
+					continue
+				} else {
 					if err != nil {
 						log.Println(err)
 						continue
-					} else {
-						if err != nil {
-							log.Println(err)
-							continue
-						}
-						timeoutCtx, cancel := context.WithTimeout(ctx, time.Second*10)
-						_, err = p.Client.ConsumeRaws(timeoutCtx, &api.ConsumeRawsReq{IdList: []uint64{data.GetId()}})
-						cancel()
-						if err != nil {
-							log.Println(err)
-							continue
-						}
-						s.AddCount(1)
 					}
+					timeoutCtx, cancel := context.WithTimeout(ctx, time.Second*10)
+					_, err = p.Client.ConsumeRaws(timeoutCtx, &api.ConsumeRawsReq{IdList: []uint64{data.GetId()}})
+					cancel()
+					if err != nil {
+						log.Println(err)
+						continue
+					}
+					s.AddCount(1)
 				}
 			}
 		}()
@@ -222,20 +217,18 @@ func (s *SenderWorker) Run(ctx context.Context) {
 	go func() {
 		speedometer := speedo.NewSpeedometer(speedo.Config{Name: s.GetName() + " Sender", Log: s.cfg.Debug})
 		// 消费 URL 通道
-		for {
-			select {
-			case task, ok := <-s.TaskChannel:
-				if !ok {
-					return
-				}
-				_, err := s.Client.AddTasks(context.Background(), &api.AddTasksReq{Tasks: []*api.Task{task}})
-				if err != nil {
-					log.Println(err)
-					time.Sleep(time.Second)
-					continue
-				} else {
-					speedometer.AddCount(1)
-				}
+		for task := range s.TaskChannel {
+			_, err := s.Client.AddTasks(context.Background(), &api.AddTasksReq{Tasks: []*api.Task{task}})
+			if err != nil {
+				log.Println(err)
+				time.Sleep(time.Second)
+
+				// retry
+				s.TaskChannel <- task
+
+				continue
+			} else {
+				speedometer.AddCount(1)
 			}
 		}
 	}()
