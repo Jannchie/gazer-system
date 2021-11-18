@@ -149,9 +149,9 @@ func NewServer(cfg *Config) *Server {
 	return &Server{
 		repository:    NewRepository(cfg.DSN, logLevel),
 		collector:     NewCollector(cfg.TorSock5Host, cfg.TorControllerHost, cfg.CollectHandle, cfg.Concurrency),
-		collectSpeedo: speedo.NewSpeedometer(speedo.Config{Log: false, Name: "Collect"}),
-		consumeSpeedo: speedo.NewSpeedometer(speedo.Config{Log: false, Name: "Consume"}),
-		receiveSpeedo: speedo.NewSpeedometer(speedo.Config{Log: false, Name: "Receive"}),
+		collectSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Collect"}),
+		consumeSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Consume"}),
+		receiveSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Receive"}),
 	}
 }
 
@@ -210,15 +210,12 @@ func (s *Server) addToChan(taskChan chan<- Task) {
 }
 
 func (s *Server) consumeTask(taskChan <-chan Task) {
-	for {
+	for task := range taskChan {
 		s.collector.semChannel <- struct{}{}
-		select {
-		case task := <-taskChan:
-			go func() {
-				s.consumeOneTask(task)
-				s.collectSpeedo.AddCount(1)
-			}()
-		}
+		go func(task Task) {
+			s.consumeOneTask(task)
+			s.collectSpeedo.AddCount(1)
+		}(task)
 	}
 }
 
