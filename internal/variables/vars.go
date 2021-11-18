@@ -18,11 +18,11 @@ var (
 func Init() {
 	if !inited {
 		flag.Parse()
-		log.Println("TOR:     				", *TorAddr)
-		log.Println("TOR_CTL:				  ", *TorCtlAddr)
-		log.Println("PORT:    				", *Port)
-		log.Println("DSN:     				", *DSN)
-		log.Println("Concurrency:     ", *Concurrency)
+		log.Println("TOR:             ", *TorAddr)
+		log.Println("TOR_CTL:         ", *TorCtlAddr)
+		log.Println("PORT:            ", *Port)
+		log.Println("DSN:             ", *DSN)
+		log.Println("CONCURRENCY:     ", *Concurrency)
 		inited = true
 	}
 }
