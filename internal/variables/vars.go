@@ -11,16 +11,18 @@ var (
 	Port        = flag.Uint("port", 2000, "gazer system server port")
 	DSN         = flag.String("dsn", "./data.db", "DSN")
 	TorPassword = flag.String("tor-pass", "password", "tor password")
+	Concurrency = flag.Uint("concurrency", 8, "concurrency")
 	inited      = false
 )
 
 func Init() {
 	if !inited {
 		flag.Parse()
-		log.Println("TOR:     ", *TorAddr)
-		log.Println("TOR_CTL: ", *TorCtlAddr)
-		log.Println("PORT:    ", *Port)
-		log.Println("DSN:     ", *DSN)
+		log.Println("TOR:     				", *TorAddr)
+		log.Println("TOR_CTL:				  ", *TorCtlAddr)
+		log.Println("PORT:    				", *Port)
+		log.Println("DSN:     				", *DSN)
+		log.Println("Concurrency:     ", *Concurrency)
 		inited = true
 	}
 }

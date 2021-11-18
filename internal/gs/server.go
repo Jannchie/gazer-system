@@ -4,6 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"log"
+	"net"
+	"net/http"
+	"time"
+
 	"github.com/jannchie/gazer-system/api"
 	"github.com/jannchie/gazer-system/internal/variables"
 	"github.com/jannchie/speedo"
@@ -12,11 +18,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"io"
-	"log"
-	"net"
-	"net/http"
-	"time"
 )
 
 type Server struct {
@@ -100,6 +101,7 @@ type Config struct {
 	TorSock5Host      string
 	TorControllerHost string
 	CollectHandle     CollectHandle
+	Concurrency       uint
 }
 
 func getDefaultConfig() *Config {
@@ -109,6 +111,7 @@ func getDefaultConfig() *Config {
 		DSN:               *variables.DSN,
 		TorSock5Host:      *variables.TorAddr,
 		TorControllerHost: *variables.TorCtlAddr,
+		Concurrency:       *variables.Concurrency,
 		CollectHandle: func(c *Collector, targetURL string) ([]byte, error) {
 			resp, err := c.client.Get(targetURL)
 			if err != nil {
@@ -145,7 +148,7 @@ func NewServer(cfg *Config) *Server {
 
 	return &Server{
 		repository:    NewRepository(cfg.DSN, logLevel),
-		collector:     NewCollector(cfg.TorSock5Host, cfg.TorControllerHost, cfg.CollectHandle),
+		collector:     NewCollector(cfg.TorSock5Host, cfg.TorControllerHost, cfg.CollectHandle, cfg.Concurrency),
 		collectSpeedo: speedo.NewSpeedometer(speedo.Config{Log: false, Name: "Collect"}),
 		consumeSpeedo: speedo.NewSpeedometer(speedo.Config{Log: false, Name: "Consume"}),
 		receiveSpeedo: speedo.NewSpeedometer(speedo.Config{Log: false, Name: "Receive"}),
@@ -247,11 +250,11 @@ type Collector struct {
 	client          *http.Client
 	proxySock5Host  string
 	lastRefresh     time.Time
-	concurrency     uint8
+	concurrency     uint
 	semChannel      chan struct{}
 }
 
-func NewCollector(proxySock5Host, proxyControllerHost string, collect CollectHandle) *Collector {
+func NewCollector(proxySock5Host, proxyControllerHost string, collect CollectHandle, concurrency uint) *Collector {
 	for {
 		client, err := torgo.NewClient(proxySock5Host)
 		if err != nil {
@@ -275,7 +278,6 @@ func NewCollector(proxySock5Host, proxyControllerHost string, collect CollectHan
 			time.Sleep(time.Second)
 			continue
 		}
-		concurrency := uint8(128)
 		return &Collector{
 			proxyController: proxyController,
 			client:          client,
