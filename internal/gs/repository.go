@@ -59,7 +59,7 @@ func initDB(dsn string, logLevel logger.LogLevel, filePath string) *gorm.DB {
 	// db.Exec("PRAGMA foreign_keys = ON;")
 	db.Exec("PRAGMA busy_timeout = 60000;")
 	db.Exec("PRAGMA journal_size_limit = 4096000;")
-	go func () {
+	go func() {
 		for {
 			db.Exec("VACUUM;")
 			time.Sleep(time.Second * 60 * 60)
@@ -89,7 +89,11 @@ func (r *Repository) updateTask() {
 			}
 			if len(updateList) != 0 {
 				for _, task := range updateList {
-					r.db.Model(&Task{}).Where("id = ?", task.ID).Update("next", time.Now().UTC().Add(time.Millisecond*time.Duration(task.IntervalMS)).Unix())
+					err := r.db.Model(&Task{}).Where("id = ?", task.ID).Update("next", time.Now().UTC().Add(time.Millisecond*time.Duration(task.IntervalMS)).Unix()).Error
+					if err != nil {
+						log.Println(err)
+						time.Sleep(time.Second)
+					}
 				}
 				updateList = updateList[:0]
 			}
@@ -97,6 +101,7 @@ func (r *Repository) updateTask() {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 				if err := r.db.WithContext(ctx).Unscoped().Where("id IN ?", consumeList).Delete(&Raw{}).Error; err != nil {
 					log.Println(err)
+					time.Sleep(time.Second)
 				}
 				cancel()
 				consumeList = consumeList[:0]
@@ -124,6 +129,7 @@ func (r *Repository) AddTasks(ctx context.Context, tasks []Task) (uint64, error)
 				// No previous
 				if res := r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&task); res.Error != nil {
 					log.Println(err)
+					time.Sleep(time.Second)
 				} else {
 					count += uint64(res.RowsAffected)
 				}
@@ -133,6 +139,7 @@ func (r *Repository) AddTasks(ctx context.Context, tasks []Task) (uint64, error)
 					Where("id = ?", tempTask.ID).
 					Update("interval_ms", task.IntervalMS); res.Error != nil {
 					log.Println(err)
+					time.Sleep(time.Second)
 				} else {
 					count += uint64(res.RowsAffected)
 				}
@@ -174,6 +181,8 @@ func (r *Repository) ConsumePendingTasks(ctx context.Context, limit uint32) ([]T
 	err := r.db.WithContext(ctx).Transaction(
 		func(tx *gorm.DB) error {
 			if err := tx.Where("next < ?", time.Now().UTC().Unix()).Order("next ASC").Limit(int(limit)).Find(&tasks).Error; err != nil {
+				log.Println(err)
+				time.Sleep(time.Second)
 				return err
 			}
 			if len(tasks) != 0 {
@@ -184,6 +193,8 @@ func (r *Repository) ConsumePendingTasks(ctx context.Context, limit uint32) ([]T
 				}
 				err := tx.Model(&tasks).Where("id IN ?", idList).Update("next", next).Error
 				if err != nil {
+					log.Println(err)
+					time.Sleep(time.Second)
 					return err
 				}
 			}
@@ -228,12 +239,13 @@ func (r *Repository) ConsumeRaw(id uint64) {
 
 func (r *Repository) recoverRaw() {
 	ticker := time.NewTicker(time.Second * 10)
-	for {
-		select {
-		case <-ticker.C:
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-			r.db.WithContext(ctx).Unscoped().Model(&Raw{}).Where("deleted_at < ?", time.Now().Add(-time.Second*30)).Update("deleted_at", nil)
-			cancel()
+	for range ticker.C {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		err := r.db.WithContext(ctx).Unscoped().Model(&Raw{}).Where("deleted_at < ?", time.Now().Add(-time.Second*30)).Update("deleted_at", nil)
+		if err != nil {
+			log.Println(err)
+			time.Sleep(time.Second)
 		}
+		cancel()
 	}
 }
