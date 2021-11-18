@@ -179,27 +179,20 @@ func (r *Repository) ConsumePendingTasks(ctx context.Context, limit uint32) ([]T
 		limit = 16
 	}
 	var tasks []Task
-	err := r.db.WithContext(ctx).Transaction(
-		func(tx *gorm.DB) error {
-			if err := tx.Where("next < ?", time.Now().UTC().Unix()).Order("next ASC").Limit(int(limit)).Find(&tasks).Error; err != nil {
-				return err
-			}
-			if len(tasks) != 0 {
-				next := uint64(time.Now().UTC().Add(time.Second * 30).Unix())
-				idList := make([]uint64, len(tasks))
-				for i := range tasks {
-					idList[i] = tasks[i].ID
-				}
-				err := tx.Model(&tasks).Where("id IN ?", idList).Update("next", next).Error
-				if err != nil {
-					return err
-				}
-			}
-			return nil
-		},
-	)
-	if err != nil {
+	var err error
+	if err := r.db.Where("next < ?", time.Now().UTC().Unix()).Order("next ASC").Limit(int(limit)).Find(&tasks).Error; err != nil {
 		return nil, err
+	}
+	if len(tasks) != 0 {
+		next := uint64(time.Now().UTC().Add(time.Second * 30).Unix())
+		idList := make([]uint64, len(tasks))
+		for i := range tasks {
+			idList[i] = tasks[i].ID
+		}
+		err = r.db.Model(&tasks).Where("id IN ?", idList).Update("next", next).Error
+		if err != nil {
+			return nil, err
+		}
 	}
 	return tasks, nil
 }
