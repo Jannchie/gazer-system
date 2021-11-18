@@ -58,13 +58,14 @@ func initDB(dsn string, logLevel logger.LogLevel, filePath string) *gorm.DB {
 	db.Exec("PRAGMA temp_store = MEMORY;")
 	// db.Exec("PRAGMA foreign_keys = ON;")
 	db.Exec("PRAGMA busy_timeout = 60000;")
-	db.Exec("PRAGMA journal_size_limit = 4096000;")
-	go func() {
-		for {
-			db.Exec("VACUUM;")
-			time.Sleep(time.Second * 60 * 60)
-		}
-	}()
+	db.Exec("PRAGMA journal_size_limit = 134217728;") // 128M
+
+	// go func() {
+	// 	for {
+	// 		db.Exec("VACUUM;")
+	// 		time.Sleep(time.Second * 60 * 60)
+	// 	}
+	// }()
 	// db.Exec("PRAGMA case_sensitive_like = 1;")
 	// db.Exec("PRAGMA recursive_triggers = 1;")
 
@@ -174,8 +175,8 @@ func (r *Repository) ListRaws(ctx context.Context, tag string, limit uint32) ([]
 	return raws, nil
 }
 func (r *Repository) ConsumePendingTasks(ctx context.Context, limit uint32) ([]Task, error) {
-	if limit == 0 || limit > 100 {
-		limit = 100
+	if limit == 0 || limit > 16 {
+		limit = 16
 	}
 	var tasks []Task
 	err := r.db.WithContext(ctx).Transaction(
