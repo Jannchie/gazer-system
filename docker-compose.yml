@@ -17,6 +17,7 @@ services:
       PORT: 2000
       DSN: "/data/gazer-system.db"
       TOR_PASSWORD: ${TOR_PASSWORD}
+      CONCURRENCY: 8
   proxy:
     image: dperson/torproxy
     expose:
