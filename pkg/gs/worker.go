@@ -218,7 +218,6 @@ func (s *SenderWorker) Run(ctx context.Context) {
 		speedometer := speedo.NewSpeedometer(speedo.Config{Name: s.GetName() + " Sender", Log: s.cfg.Debug})
 		// 消费 URL 通道
 		for task := range s.TaskChannel {
-			// if task.IntervalMS == 0 {
 			_, err := s.Client.AddTasks(context.Background(), &api.AddTasksReq{Tasks: []*api.Task{task}})
 			if err != nil {
 				log.Println(err)
@@ -231,9 +230,6 @@ func (s *SenderWorker) Run(ctx context.Context) {
 			} else {
 				speedometer.AddCount(1)
 			}
-			// } else {
-			// TODO: Send to scheduler
-			// }
 		}
 	}()
 	go func() {

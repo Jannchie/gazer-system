@@ -8,6 +8,7 @@ import (
 var (
 	TorAddr     = flag.String("tor", "localhost:9050", "tor address")
 	TorCtlAddr  = flag.String("tor-ctl", "localhost:9051", "tor control address")
+	SPEEDOS     = flag.String("speedos", "", "speedometer server's address")
 	Port        = flag.Uint("port", 2000, "gazer system server port")
 	DSN         = flag.String("dsn", "./data.db", "DSN")
 	TorPassword = flag.String("tor-pass", "password", "tor password")
@@ -23,6 +24,7 @@ func Init() {
 		log.Println("PORT:            ", *Port)
 		log.Println("DSN:             ", *DSN)
 		log.Println("CONCURRENCY:     ", *Concurrency)
+		log.Println("SPEEDOS:         ", *SPEEDOS)
 		inited = true
 	}
 }

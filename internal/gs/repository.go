@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/jannchie/speedo"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -18,10 +19,10 @@ type Repository struct {
 	rawConsumeChannel chan uint64
 }
 
-func NewRepository(dsn string, logLevel logger.LogLevel) *Repository {
+func NewRepository(dsn string, logLevel logger.LogLevel, speedo *speedo.Speedometer) *Repository {
 	db := initDB(dsn, logLevel, "")
 	r := &Repository{db: db, taskUpdateChannel: make(chan Task, 128), rawConsumeChannel: make(chan uint64, 128)}
-	go r.updateTask()
+	go r.updateTask(speedo)
 	go r.recoverRaw()
 	return r
 }
@@ -76,7 +77,7 @@ func initDB(dsn string, logLevel logger.LogLevel, filePath string) *gorm.DB {
 
 	return db
 }
-func (r *Repository) updateTask() {
+func (r *Repository) updateTask(s *speedo.Speedometer) {
 	ticker := time.NewTicker(time.Second * 1)
 	deleteList := make([]uint64, 0, 100)
 	updateList := make([]Task, 0, 100)
@@ -94,6 +95,8 @@ func (r *Repository) updateTask() {
 					if err != nil {
 						log.Println(err)
 						time.Sleep(time.Second)
+					} else {
+						s.AddCount(1)
 					}
 				}
 				updateList = updateList[:0]

@@ -26,6 +26,7 @@ type Server struct {
 	collectSpeedo *speedo.Speedometer
 	consumeSpeedo *speedo.Speedometer
 	receiveSpeedo *speedo.Speedometer
+	triggerSpeedo *speedo.Speedometer
 }
 
 func (s *Server) ConsumeRaws(_ context.Context, req *api.ConsumeRawsReq) (*api.OperationResp, error) {
@@ -145,13 +146,14 @@ func NewDefaultServer() *Server {
 func NewServer(cfg *Config) *Server {
 	variables.Init()
 	logLevel := getLogLevel(cfg)
-
+	triggerSpeedo := speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Trigger", Server: *variables.SPEEDOS})
 	return &Server{
-		repository:    NewRepository(cfg.DSN, logLevel),
+		repository:    NewRepository(cfg.DSN, logLevel, triggerSpeedo),
 		collector:     NewCollector(cfg.TorSock5Host, cfg.TorControllerHost, cfg.CollectHandle, cfg.Concurrency),
-		collectSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Collect"}),
-		consumeSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Consume"}),
-		receiveSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Receive"}),
+		collectSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Collect", Server: *variables.SPEEDOS}),
+		consumeSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Consume", Server: *variables.SPEEDOS}),
+		receiveSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Receive", Server: *variables.SPEEDOS}),
+		triggerSpeedo: triggerSpeedo,
 	}
 }
 
