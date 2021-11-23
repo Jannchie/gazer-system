@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/jannchie/speedo"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -19,10 +18,10 @@ type Repository struct {
 	rawConsumeChannel chan uint64
 }
 
-func NewRepository(dsn string, logLevel logger.LogLevel, speedo *speedo.Speedometer) *Repository {
+func NewRepository(dsn string, logLevel logger.LogLevel) *Repository {
 	db := initDB(dsn, logLevel, "")
 	r := &Repository{db: db, taskUpdateChannel: make(chan Task, 128), rawConsumeChannel: make(chan uint64, 128)}
-	go r.updateTask(speedo)
+	go r.updateTask()
 	go r.recoverRaw()
 	return r
 }
@@ -77,39 +76,47 @@ func initDB(dsn string, logLevel logger.LogLevel, filePath string) *gorm.DB {
 
 	return db
 }
-func (r *Repository) updateTask(s *speedo.Speedometer) {
-	ticker := time.NewTicker(time.Second * 1)
+func (r *Repository) updateTask() {
+	ticker := time.NewTicker(time.Second * 5)
 	deleteList := make([]uint64, 0, 100)
 	updateList := make([]Task, 0, 100)
 	consumeList := make([]uint64, 0, 100)
 	for {
 		select {
 		case <-ticker.C:
-			if len(deleteList) != 0 {
-				r.db.Unscoped().Where("id IN ?", deleteList).Delete(&Task{})
-				deleteList = deleteList[:0]
-			}
-			if len(updateList) != 0 {
-				for _, task := range updateList {
-					err := r.db.Model(&Task{}).Where("id = ?", task.ID).Update("next", time.Now().UTC().Add(time.Millisecond*time.Duration(task.IntervalMS)).Unix()).Error
-					if err != nil {
+			go func() {
+				if len(deleteList) != 0 {
+					ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+					r.db.WithContext(ctx).Unscoped().Where("id IN ?", deleteList).Delete(&Task{})
+					deleteList = deleteList[:0]
+					cancel()
+				}
+			}()
+			go func() {
+				if len(updateList) != 0 {
+					for _, task := range updateList {
+						ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+						err := r.db.WithContext(ctx).Model(&Task{}).Where("id = ?", task.ID).Update("next", time.Now().UTC().Add(time.Millisecond*time.Duration(task.IntervalMS)).Unix()).Error
+						if err != nil {
+							log.Println(err)
+							time.Sleep(time.Second)
+						}
+						cancel()
+					}
+					updateList = updateList[:0]
+				}
+			}()
+			go func() {
+				if len(consumeList) != 0 {
+					ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+					if err := r.db.WithContext(ctx).Unscoped().Where("id IN ?", consumeList).Delete(&Raw{}).Error; err != nil {
 						log.Println(err)
 						time.Sleep(time.Second)
-					} else {
-						s.AddCount(1)
 					}
+					cancel()
+					consumeList = consumeList[:0]
 				}
-				updateList = updateList[:0]
-			}
-			if len(consumeList) != 0 {
-				ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-				if err := r.db.WithContext(ctx).Unscoped().Where("id IN ?", consumeList).Delete(&Raw{}).Error; err != nil {
-					log.Println(err)
-					time.Sleep(time.Second)
-				}
-				cancel()
-				consumeList = consumeList[:0]
-			}
+			}()
 		case task := <-r.taskUpdateChannel:
 			if task.IntervalMS == 0 {
 				deleteList = append(deleteList, task.ID)

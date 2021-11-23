@@ -146,14 +146,13 @@ func NewDefaultServer() *Server {
 func NewServer(cfg *Config) *Server {
 	variables.Init()
 	logLevel := getLogLevel(cfg)
-	triggerSpeedo := speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Trigger", Server: *variables.SPEEDOS})
 	return &Server{
-		repository:    NewRepository(cfg.DSN, logLevel, triggerSpeedo),
+		repository:    NewRepository(cfg.DSN, logLevel),
 		collector:     NewCollector(cfg.TorSock5Host, cfg.TorControllerHost, cfg.CollectHandle, cfg.Concurrency),
 		collectSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Collect", Server: *variables.SPEEDOS}),
 		consumeSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Consume", Server: *variables.SPEEDOS}),
 		receiveSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Receive", Server: *variables.SPEEDOS}),
-		triggerSpeedo: triggerSpeedo,
+		triggerSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Trigger", Server: *variables.SPEEDOS}),
 	}
 }
 
@@ -216,6 +215,9 @@ func (s *Server) consumeTask(taskChan <-chan Task) {
 	for task := range taskChan {
 		s.collector.semChannel <- struct{}{}
 		go func(task Task) {
+			if task.IntervalMS != 0 {
+				s.triggerSpeedo.AddCount(1)
+			}
 			s.consumeOneTask(task)
 			s.collectSpeedo.AddCount(1)
 		}(task)
