@@ -87,6 +87,7 @@ func (s *Server) AddTasks(ctx context.Context, req *api.AddTasksReq) (*api.Opera
 		tasks[i].URL = req.Tasks[i].Url
 		tasks[i].Tag = req.Tasks[i].Tag
 		tasks[i].IntervalMS = req.Tasks[i].IntervalMS
+		tasks[i].Next = uint64(time.Now().Unix())
 	}
 	count, err := s.repository.AddTasks(ctx, tasks)
 	if err != nil {

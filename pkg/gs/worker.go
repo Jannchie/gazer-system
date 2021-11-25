@@ -190,6 +190,8 @@ func (p *ParserWorker) Run(ctx context.Context) {
 			for data := range p.rawChannel {
 				err := p.Parser(data, p.Client)
 				if err != nil {
+					log.Println(data.Url)
+					log.Println(string(data.Data))
 					log.Println(err)
 					continue
 				} else {
