@@ -1,8 +1,9 @@
 package gs
 
 import (
-	"google.golang.org/grpc/resolver"
 	"log"
+
+	"google.golang.org/grpc/resolver"
 )
 
 // Following is an example name resolver. It includes a

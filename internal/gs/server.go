@@ -21,12 +21,14 @@ import (
 )
 
 type Server struct {
-	repository    *Repository
-	collector     *Collector
-	collectSpeedo *speedo.Speedometer
-	consumeSpeedo *speedo.Speedometer
-	receiveSpeedo *speedo.Speedometer
-	triggerSpeedo *speedo.Speedometer
+	repository      *Repository
+	collector       *Collector
+	collectSpeedo   *speedo.Speedometer
+	consumeSpeedo   *speedo.Speedometer
+	receiveSpeedo   *speedo.Speedometer
+	triggerSpeedo   *speedo.Speedometer
+	taskQueueSpeedo *speedo.Speedometer
+	rawQueueSpeedo  *speedo.Speedometer
 }
 
 func (s *Server) ConsumeRaws(_ context.Context, req *api.ConsumeRawsReq) (*api.OperationResp, error) {
@@ -148,12 +150,14 @@ func NewServer(cfg *Config) *Server {
 	variables.Init()
 	logLevel := getLogLevel(cfg)
 	return &Server{
-		repository:    NewRepository(cfg.DSN, logLevel),
-		collector:     NewCollector(cfg.TorSock5Host, cfg.TorControllerHost, cfg.CollectHandle, cfg.Concurrency),
-		collectSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Collect", Server: *variables.SPEEDOS}),
-		consumeSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Consume", Server: *variables.SPEEDOS}),
-		receiveSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Receive", Server: *variables.SPEEDOS}),
-		triggerSpeedo: speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Trigger", Server: *variables.SPEEDOS}),
+		repository:      NewRepository(cfg.DSN, logLevel),
+		collector:       NewCollector(cfg.TorSock5Host, cfg.TorControllerHost, cfg.CollectHandle, cfg.Concurrency),
+		collectSpeedo:   speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Collect", Server: *variables.SPEEDOS}),
+		consumeSpeedo:   speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Consume", Server: *variables.SPEEDOS}),
+		receiveSpeedo:   speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Receive", Server: *variables.SPEEDOS}),
+		triggerSpeedo:   speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Trigger", Server: *variables.SPEEDOS}),
+		rawQueueSpeedo:  speedo.NewVariationSpeedometer(speedo.Config{Log: true, Name: "Raw Queue", Server: *variables.SPEEDOS}),
+		taskQueueSpeedo: speedo.NewVariationSpeedometer(speedo.Config{Log: true, Name: "Task Queue", Server: *variables.SPEEDOS}),
 	}
 }
 
@@ -167,7 +171,27 @@ func getLogLevel(cfg *Config) logger.LogLevel {
 	return logLevel
 }
 
+func (s *Server) ServerMonitor() {
+	ticker := time.NewTicker(time.Duration(time.Second * 3))
+	for  {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+		var rawQueueLength uint64
+		var taskQueueLength uint64
+		go func(ctx context.Context) {
+			s.repository.db.WithContext(ctx).Raw("SELECT count(*) FROM tasks where next < strftime('%s','now');").Scan(&taskQueueLength)
+			s.taskQueueSpeedo.SetValue(taskQueueLength)
+		}(ctx)
+		go func(ctx context.Context) {
+			s.repository.db.WithContext(ctx).Raw("SELECT count(*) FROM raws;").Scan(&rawQueueLength)
+			s.rawQueueSpeedo.SetValue(rawQueueLength)
+		}(ctx)
+		<-ticker.C
+		cancel()
+	}
+}
+
 func (s *Server) Run() {
+	go s.ServerMonitor()
 	taskChan := make(chan Task)
 	go s.addToChan(taskChan)
 	go s.consumeTask(taskChan)

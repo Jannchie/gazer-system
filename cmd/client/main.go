@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
+	"log"
+
 	"github.com/jannchie/gazer-system/api"
 	"github.com/jannchie/gazer-system/pkg/gs"
-	"log"
 )
 
 func main() {

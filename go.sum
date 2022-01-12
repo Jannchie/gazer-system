@@ -47,6 +47,8 @@ github.com/google/uuid v1.3.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+
 github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFbcEtjT1g+wF4CSlocrBnw=
 github.com/jannchie/speedo v0.1.6 h1:gUt2EVK+OiMbH74sGZT3Kl4aba4FhUbHJN1GnPIKr2o=
 github.com/jannchie/speedo v0.1.6/go.mod h1:b2/SuaTmVG8KIfmxUS2gu8/8bUAOMdfVQo76fG8IITg=
+github.com/jannchie/speedo v0.3.1 h1:VV3k2pvAowpzZ9dq6pJJwLnoPx1w9+yYdJuSSu9B4So=
+github.com/jannchie/speedo v0.3.1/go.mod h1:b2/SuaTmVG8KIfmxUS2gu8/8bUAOMdfVQo76fG8IITg=
 github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD/E=
 github.com/jinzhu/inflection v1.0.0/go.mod h1:h+uFLlag+Qp1Va5pdKtLDYj+kHp5pxUVkryuEj+Srlc=
 github.com/jinzhu/now v1.1.2 h1:eVKgfIdy9b6zbWBMgFpfDPoAMifwSZagU9HmEU6zgiI=
