@@ -60,12 +60,12 @@ func initDB(dsn string, logLevel logger.LogLevel, filePath string) *gorm.DB {
 	db.Exec("PRAGMA busy_timeout = 60000;")
 	db.Exec("PRAGMA journal_size_limit = 134217728;") // 128M
 
-	// go func() {
-	// 	for {
-	// 		db.Exec("VACUUM;")
-	// 		time.Sleep(time.Second * 60 * 60)
-	// 	}
-	// }()
+	go func() {
+		for {
+			db.Exec("VACUUM;")
+			time.Sleep(time.Second * 60 * 60 * 24)
+		}
+	}()
 	// db.Exec("PRAGMA case_sensitive_like = 1;")
 	// db.Exec("PRAGMA recursive_triggers = 1;")
 
@@ -131,24 +131,31 @@ func (r *Repository) updateTask() {
 func (r *Repository) AddTasks(ctx context.Context, tasks []Task) (uint64, error) {
 	var err error
 	var count uint64
-	for _, task := range tasks {
-		var tempTask Task
-		if err = r.db.WithContext(ctx).Find(&tempTask, "url = ?", task.URL).Error; err != nil {
+	nowTS := uint64(time.Now().Unix())
+	for _, newTask := range tasks {
+		var oriTask Task
+		if err = r.db.WithContext(ctx).Find(&oriTask, "url = ?", newTask.URL).Error; err != nil {
 			return 0, err
 		} else {
-			if tempTask.ID == 0 {
+			if oriTask.ID == 0 {
 				// No previous
-				if res := r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&task); res.Error != nil {
+				if res := r.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&newTask); res.Error != nil {
 					log.Println(res.Error)
 					time.Sleep(time.Second)
 				} else {
 					count += uint64(res.RowsAffected)
 				}
-			} else if tempTask.IntervalMS > task.IntervalMS && task.IntervalMS != 0 ||
-				tempTask.IntervalMS == 0 && task.IntervalMS != 0 {
-				if res := r.db.WithContext(ctx).Model(&task).
-					Where("id = ?", tempTask.ID).
-					Update("interval_ms", task.IntervalMS); res.Error != nil {
+			} else if newTask.IntervalMS != 0 || oriTask.IntervalMS != 0 {
+				// 有记录，且记录是立即执行请求，且新的记录是非立即执行请求，则更新请求间隔
+				if res := r.db.WithContext(ctx).Model(&newTask).Where("id = ?", oriTask.ID).Update("interval_ms", newTask.IntervalMS); res.Error != nil {
+					log.Println(err)
+					time.Sleep(time.Second)
+				} else {
+					count += uint64(res.RowsAffected)
+				}
+			} else if newTask.IntervalMS == 0 && oriTask.IntervalMS != 0 && (oriTask.Next > nowTS) {
+				// 有定时请求记录，且新的记录时立即执行请求，且计划执行时间较迟，则更新计划执行时间为现在
+				if res := r.db.WithContext(ctx).Model(&newTask).Where("id = ?", oriTask.ID).Update("next", nowTS); res.Error != nil {
 					log.Println(err)
 					time.Sleep(time.Second)
 				} else {
