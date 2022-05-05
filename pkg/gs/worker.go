@@ -13,9 +13,24 @@ import (
 
 type WorkerOptions func(*WorkerConfig)
 
+type Mode string
+
+var (
+	ModeDefault    = Mode("default")
+	ModeOnlyParser = Mode("only-parser")
+	ModeOnlySender = Mode("only-sender")
+)
+
 type WorkerConfig struct {
 	Debug             bool
 	SpeedometerServer string
+	Mode              Mode
+}
+
+func WithMode(mode Mode) WorkerOptions {
+	return func(c *WorkerConfig) {
+		c.Mode = mode
+	}
 }
 
 func WithDebug(debug bool) WorkerOptions {
@@ -244,8 +259,15 @@ func (s *SenderWorker) Run(ctx context.Context) {
 func (w *BothWorker) Run(ctx context.Context) {
 	w.ParserWorker.cfg = w.cfg
 	w.SenderWorker.cfg = w.cfg
-	go w.ParserWorker.Run(ctx)
-	go w.SenderWorker.Run(ctx)
+	switch w.cfg.Mode {
+	case ModeOnlyParser:
+		go w.ParserWorker.Run(ctx)
+	case ModeOnlySender:
+		go w.SenderWorker.Run(ctx)
+	default:
+		go w.SenderWorker.Run(ctx)
+		go w.ParserWorker.Run(ctx)
+	}
 	<-ctx.Done()
 }
 
