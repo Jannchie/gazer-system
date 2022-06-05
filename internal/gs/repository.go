@@ -58,14 +58,10 @@ func initDB(dsn string, logLevel logger.LogLevel, filePath string) *gorm.DB {
 	db.Exec("PRAGMA temp_store = MEMORY;")
 	// db.Exec("PRAGMA foreign_keys = ON;")
 	db.Exec("PRAGMA busy_timeout = 60000;")
+	db.Exec("PRAGMA auto_vacuum = incremental;")
 	db.Exec("PRAGMA journal_size_limit = 134217728;") // 128M
+	db.Exec("PRAGMA mmap_size = 134217728;")          // 128M
 
-	go func() {
-		for {
-			db.Exec("VACUUM;")
-			time.Sleep(time.Second * 60 * 60 * 24)
-		}
-	}()
 	// db.Exec("PRAGMA case_sensitive_like = 1;")
 	// db.Exec("PRAGMA recursive_triggers = 1;")
 
@@ -145,16 +141,14 @@ func (r *Repository) AddTasks(ctx context.Context, tasks []Task) (uint64, error)
 				} else {
 					count += uint64(res.RowsAffected)
 				}
-			} else if newTask.IntervalMS != 0 || oriTask.IntervalMS != 0 {
-				// 有记录，且记录是立即执行请求，且新的记录是非立即执行请求，则更新请求间隔
+			} else if newTask.IntervalMS != 0 && oriTask.IntervalMS != 0 {
+				// 有记录，且记录是非立即执行请求，且新的记录是非立即执行请求，则更新请求间隔
 				if res := r.db.WithContext(ctx).Model(&newTask).Where("id = ?", oriTask.ID).Update("interval_ms", newTask.IntervalMS); res.Error != nil {
 					log.Println(err)
 					time.Sleep(time.Second)
-				} else {
-					count += uint64(res.RowsAffected)
 				}
 			} else if newTask.IntervalMS == 0 && oriTask.IntervalMS != 0 && (oriTask.Next > nowTS) {
-				// 有定时请求记录，且新的记录时立即执行请求，且计划执行时间较迟，则更新计划执行时间为现在
+				// 有定时请求记录，且新的记录是立即执行请求，且计划执行时间较迟，则更新计划执行时间为现在
 				if res := r.db.WithContext(ctx).Model(&newTask).Where("id = ?", oriTask.ID).Update("next", nowTS); res.Error != nil {
 					log.Println(err)
 					time.Sleep(time.Second)
@@ -173,16 +167,15 @@ func (r *Repository) AddTasks(ctx context.Context, tasks []Task) (uint64, error)
 func (r *Repository) ListRaws(ctx context.Context, tag string, limit uint32) ([]Raw, error) {
 	var raws []Raw
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := r.db.WithContext(ctx).Where("tag = ?", tag).Limit(int(limit)).Find(&raws).Error
+		err := tx.Where("tag = ?", tag).Limit(int(limit)).Find(&raws).Error
 		if err != nil {
 			return err
 		}
-		//idList := make([]uint64, len(raws))
-		//for i := range raws {
-		//	idList[i] = raws[i].ID
-		//}
 		if len(raws) != 0 {
-			r.db.WithContext(ctx).Delete(&raws)
+			err = tx.Delete(&raws).Error
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	})

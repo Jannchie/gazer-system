@@ -152,12 +152,12 @@ func NewServer(cfg *Config) *Server {
 	return &Server{
 		repository:      NewRepository(cfg.DSN, logLevel),
 		collector:       NewCollector(cfg.TorSock5Host, cfg.TorControllerHost, cfg.CollectHandle, cfg.Concurrency),
-		collectSpeedo:   speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Collect", Server: *variables.SPEEDOS}),
-		consumeSpeedo:   speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Consume", Server: *variables.SPEEDOS}),
-		receiveSpeedo:   speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Receive", Server: *variables.SPEEDOS}),
-		triggerSpeedo:   speedo.NewSpeedometer(speedo.Config{Log: true, Name: "Trigger", Server: *variables.SPEEDOS}),
-		rawQueueSpeedo:  speedo.NewVariationSpeedometer(speedo.Config{Log: true, Name: "Raw Queue", Server: *variables.SPEEDOS}),
-		taskQueueSpeedo: speedo.NewVariationSpeedometer(speedo.Config{Log: true, Name: "Task Queue", Server: *variables.SPEEDOS}),
+		collectSpeedo:   speedo.NewSpeedometer(speedo.Config{Log: cfg.Debug, Name: "Collect", Server: *variables.SPEEDOS}),
+		consumeSpeedo:   speedo.NewSpeedometer(speedo.Config{Log: cfg.Debug, Name: "Consume", Server: *variables.SPEEDOS}),
+		receiveSpeedo:   speedo.NewSpeedometer(speedo.Config{Log: cfg.Debug, Name: "Receive", Server: *variables.SPEEDOS}),
+		triggerSpeedo:   speedo.NewSpeedometer(speedo.Config{Log: cfg.Debug, Name: "Trigger", Server: *variables.SPEEDOS}),
+		rawQueueSpeedo:  speedo.NewVariationSpeedometer(speedo.Config{Log: cfg.Debug, Name: "Raw Queue", Server: *variables.SPEEDOS}),
+		taskQueueSpeedo: speedo.NewVariationSpeedometer(speedo.Config{Log: cfg.Debug, Name: "Task Queue", Server: *variables.SPEEDOS}),
 	}
 }
 
@@ -172,9 +172,9 @@ func getLogLevel(cfg *Config) logger.LogLevel {
 }
 
 func (s *Server) ServerMonitor() {
-	ticker := time.NewTicker(time.Duration(time.Second * 3))
+	ticker := time.NewTicker(time.Duration(time.Second * 5))
 	for  {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		var rawQueueLength uint64
 		var taskQueueLength uint64
 		go func(ctx context.Context) {
@@ -253,21 +253,20 @@ func (s *Server) consumeOneTask(task Task) {
 	targetURL := task.URL
 	data, err := s.collector.collect(s.collector, targetURL)
 
-	<-s.collector.semChannel
-
 	if err != nil {
 		if !IsTemporary(err) {
 			log.Println(err)
-			go s.repository.DeleteTask(context.Background(), task.ID)
+			s.repository.DeleteTask(context.Background(), task.ID)
 		}
 	} else {
 		err = s.repository.SaveRaw(task.Tag, task.URL, data)
 		if err != nil {
 			log.Println(err)
 		} else {
-			go s.repository.AddToUpdateChannel(task)
+			s.repository.AddToUpdateChannel(task)
 		}
 	}
+	<-s.collector.semChannel
 }
 
 type CollectHandle func(collector *Collector, targetURL string) ([]byte, error)
