@@ -173,7 +173,7 @@ func getLogLevel(cfg *Config) logger.LogLevel {
 
 func (s *Server) ServerMonitor() {
 	ticker := time.NewTicker(time.Duration(time.Second * 5))
-	for  {
+	for {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		var rawQueueLength uint64
 		var taskQueueLength uint64

@@ -8,13 +8,13 @@ services:
       dockerfile: docker/server.dockerfile
       context: .
     ports:
-      - "2000:2000"
+      - "2001:2001"
     volumes:
       - db:/data
     environment:
       TOR: "proxy:9050"
       TOR_CTL: "proxy:9051"
-      PORT: 2000
+      GSS_PORT: 2001
       DSN: "/data/gazer-system.db"
       TOR_PASSWORD: ${TOR_PASSWORD}
       CONCURRENCY: 8
@@ -25,3 +25,6 @@ services:
       - 9051
     environment:
       PASSWORD: ${TOR_PASSWORD}
+  client:
+    build:
+      dockerfile: docker/test.dockerfile

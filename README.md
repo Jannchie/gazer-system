@@ -62,21 +62,22 @@ docker compose up
 ``` golang
 func main() {
 	ctx := context.Background()
-  
+
 	// 定义一个 Worker Group，连接服务器
-	wg := gs.NewWorkerGroup("localhost:2000")
-  
-  	// 定义一个既能解析，又能发起爬取任务的 Worker
+	wg := gs.NewWorkerGroup([]string{"localhost:2000"})
+
+	// 定义一个既能解析，又能发起爬取任务的 Worker
 	bwu := gs.NewBothWorker(wg.Client, "test", func(tasks chan<- *api.Task) {
 		tasks <- &api.Task{
 			Url:        "https://pv.sohu.com/cityjson",
 			Tag:        "test",
 			IntervalMS: 0, // 表示只爬一次
 		}
-	}, func(raw *api.Raw) error {
-		log.Printf("%+v\n", raw)
+	}, func(r *api.Raw, c *gs.Client) error {
+		log.Printf("%+v\n", r)
 		return nil
 	})
+
 	// 添加这个 Worker
 	wg.AddByWorkUnit(bwu)
 	// 跑
