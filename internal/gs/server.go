@@ -33,7 +33,7 @@ type Server struct {
 
 func (s *Server) ConsumeRaws(_ context.Context, req *api.ConsumeRawsReq) (*api.OperationResp, error) {
 	s.repository.ConsumeRaws(req.IdList)
-	s.consumeSpeedo.AddCount(uint64(len(req.IdList)))
+	s.consumeSpeedo.AddValue(int64(len(req.IdList)))
 	return &api.OperationResp{Msg: "ok", Code: 1}, nil
 }
 
@@ -95,7 +95,7 @@ func (s *Server) AddTasks(ctx context.Context, req *api.AddTasksReq) (*api.Opera
 	if err != nil {
 		return nil, err
 	}
-	s.receiveSpeedo.AddCount(count)
+	s.receiveSpeedo.AddValue(int64(count))
 	return &api.OperationResp{Code: 1, Msg: "ok"}, nil
 }
 
@@ -175,8 +175,8 @@ func (s *Server) ServerMonitor() {
 	ticker := time.NewTicker(time.Duration(time.Second * 5))
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		var rawQueueLength uint64
-		var taskQueueLength uint64
+		var rawQueueLength int64
+		var taskQueueLength int64
 		go func(ctx context.Context) {
 			s.repository.db.WithContext(ctx).Raw("SELECT count(*) FROM tasks where next < strftime('%s','now');").Scan(&taskQueueLength)
 			s.taskQueueSpeedo.SetValue(taskQueueLength)
@@ -241,10 +241,10 @@ func (s *Server) consumeTask(taskChan <-chan Task) {
 		s.collector.semChannel <- struct{}{}
 		go func(task Task) {
 			if task.IntervalMS != 0 {
-				s.triggerSpeedo.AddCount(1)
+				s.triggerSpeedo.AddValue(1)
 			}
 			s.consumeOneTask(task)
-			s.collectSpeedo.AddCount(1)
+			s.collectSpeedo.AddValue(1)
 		}(task)
 	}
 }

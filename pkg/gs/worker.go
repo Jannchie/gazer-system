@@ -221,7 +221,7 @@ func (p *ParserWorker) Run(ctx context.Context) {
 						log.Println(err)
 						continue
 					}
-					s.AddCount(1)
+					s.AddValue(1)
 				}
 			}
 		}()
@@ -245,7 +245,7 @@ func (s *SenderWorker) Run(ctx context.Context) {
 				}()
 				continue
 			} else {
-				speedometer.AddCount(1)
+				speedometer.AddValue(1)
 			}
 		}
 	}()
