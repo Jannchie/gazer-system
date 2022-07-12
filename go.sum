@@ -53,6 +53,8 @@ github.com/jannchie/speedo v0.4.0 h1://+Djd6sWnW91/8oeD/vMkGt2V2nt8ULFBhn2joNPug
 github.com/jannchie/speedo v0.4.0/go.mod h1:b2/SuaTmVG8KIfmxUS2gu8/8bUAOMdfVQo76fG8IITg=
 github.com/jannchie/speedo v0.4.1 h1:FYGLBVkSEJOeUcE7RMIznACWzpqEJMZwyXmaCg+ItMw=
 github.com/jannchie/speedo v0.4.1/go.mod h1:b2/SuaTmVG8KIfmxUS2gu8/8bUAOMdfVQo76fG8IITg=
+github.com/jannchie/speedo v0.4.2 h1:78FRlDY2Yf9b9NPATYduo1b2ik/BxYe/B9FriUHT2hI=
+github.com/jannchie/speedo v0.4.2/go.mod h1:b2/SuaTmVG8KIfmxUS2gu8/8bUAOMdfVQo76fG8IITg=
 github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD/E=
 github.com/jinzhu/inflection v1.0.0/go.mod h1:h+uFLlag+Qp1Va5pdKtLDYj+kHp5pxUVkryuEj+Srlc=
 github.com/jinzhu/now v1.1.2 h1:eVKgfIdy9b6zbWBMgFpfDPoAMifwSZagU9HmEU6zgiI=
