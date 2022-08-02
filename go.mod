@@ -10,6 +10,7 @@ require (
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/grpc v1.41.0
 	google.golang.org/protobuf v1.27.1
-	gorm.io/driver/sqlite v1.1.6
-	gorm.io/gorm v1.21.15
+	gorm.io/driver/postgres v1.3.8 // indirect
+	gorm.io/driver/sqlite v1.3.6
+	gorm.io/gorm v1.23.8
 )

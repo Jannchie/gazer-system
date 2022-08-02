@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/jannchie/gazer-system/internal/variables"
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -19,15 +21,16 @@ type Repository struct {
 }
 
 func NewRepository(dsn string, logLevel logger.LogLevel) *Repository {
-	db := initDB(dsn, logLevel, "")
+	db := initDB(dsn, logLevel)
 	r := &Repository{db: db, taskUpdateChannel: make(chan Task, 128), rawConsumeChannel: make(chan uint64, 128)}
 	go r.updateTask()
 	go r.recoverRaw()
 	return r
 }
 
-func initDB(dsn string, logLevel logger.LogLevel, filePath string) *gorm.DB {
+func initDB(dsn string, logLevel logger.LogLevel) *gorm.DB {
 	var myLog logger.Writer
+	filePath := ""
 	if filePath != "" {
 		f, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
 		if err != nil {
@@ -37,7 +40,7 @@ func initDB(dsn string, logLevel logger.LogLevel, filePath string) *gorm.DB {
 	} else {
 		myLog = log.New(os.Stdout, "\r\n", log.LstdFlags)
 	}
-	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
+	config := &gorm.Config{
 		SkipDefaultTransaction: true,
 		Logger: logger.New(
 			myLog, // io writer
@@ -48,28 +51,47 @@ func initDB(dsn string, logLevel logger.LogLevel, filePath string) *gorm.DB {
 				Colorful:                  false,       // Disable color
 			},
 		),
-	})
+	}
+	if *variables.DB == "sqlite" {
+		return initSqlite(dsn, config)
+	} else {
+		return initPostgres(dsn, config)
+	}
+}
+
+func initPostgres(dsn string, config *gorm.Config) *gorm.DB {
+	ticker := time.NewTicker(time.Second * 5)
+	for range ticker.C {
+		db, err := gorm.Open(postgres.Open(dsn), config)
+		if err != nil {
+			log.Println(err)
+		}
+		err = db.AutoMigrate(&Task{}, &Raw{})
+		if err != nil {
+			log.Println(err)
+		}
+		return db
+	}
+	return nil
+}
+
+func initSqlite(dsn string, config *gorm.Config) *gorm.DB {
+	db, err := gorm.Open(sqlite.Open(dsn), config)
 	if err != nil {
 		panic(err)
 	}
-
 	db.Exec("PRAGMA journal_mode = WAL;")
 	db.Exec("PRAGMA synchronous = NORMAL;")
 	db.Exec("PRAGMA temp_store = MEMORY;")
-	// db.Exec("PRAGMA foreign_keys = ON;")
 	db.Exec("PRAGMA busy_timeout = 60000;")
 	db.Exec("PRAGMA auto_vacuum = incremental;")
-	db.Exec("PRAGMA journal_size_limit = 134217728;") // 128M
-	db.Exec("PRAGMA mmap_size = 134217728;")          // 128M
-
-	// db.Exec("PRAGMA case_sensitive_like = 1;")
-	// db.Exec("PRAGMA recursive_triggers = 1;")
+	db.Exec("PRAGMA journal_size_limit = 134217728;")
+	db.Exec("PRAGMA mmap_size = 134217728;")
 
 	err = db.AutoMigrate(&Task{}, &Raw{})
 	if err != nil {
 		panic(err)
 	}
-
 	return db
 }
 func (r *Repository) updateTask() {

@@ -15,7 +15,8 @@ services:
       TOR: "proxy:9050"
       TOR_CTL: "proxy:9051"
       GSS_PORT: 2001
-      DSN: "/data/gazer-system.db"
+      DB: "postgres"
+      DSN: "postgres://postgres:postgres@db:5432/postgres"
       TOR_PASSWORD: ${TOR_PASSWORD}
       CONCURRENCY: 8
   proxy:
@@ -28,3 +29,10 @@ services:
   client:
     build:
       dockerfile: docker/test.dockerfile
+  db:
+    image: postgres
+    ports:
+      - "25432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres

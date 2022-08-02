@@ -178,7 +178,12 @@ func (s *Server) ServerMonitor() {
 		var rawQueueLength int64
 		var taskQueueLength int64
 		go func(ctx context.Context) {
-			s.repository.db.WithContext(ctx).Raw("SELECT count(*) FROM tasks where next < strftime('%s','now');").Scan(&taskQueueLength)
+			switch *variables.DB {
+			case "sqlite":
+				s.repository.db.WithContext(ctx).Raw("SELECT count(*) FROM tasks where next < strftime('%s','now');").Scan(&taskQueueLength)
+			case "postgres":
+				s.repository.db.WithContext(ctx).Raw("SELECT count(*) FROM tasks where next < ?", time.Now().Unix()).Scan(&taskQueueLength)
+			}
 			s.taskQueueSpeedo.SetValue(taskQueueLength)
 		}(ctx)
 		go func(ctx context.Context) {
