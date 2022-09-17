@@ -108,7 +108,7 @@ type Config struct {
 	Concurrency       uint
 }
 
-func getDefaultConfig() *Config {
+func NewDefaultConfig() *Config {
 	variables.Init()
 	return &Config{
 		Debug:             true,
@@ -117,7 +117,7 @@ func getDefaultConfig() *Config {
 		TorControllerHost: *variables.TorCtlAddr,
 		Concurrency:       *variables.Concurrency,
 		CollectHandle: func(c *Collector, targetURL string) ([]byte, error) {
-			resp, err := c.client.Get(targetURL)
+			resp, err := c.Client.Get(targetURL)
 			if err != nil {
 				return nil, err
 			}
@@ -143,7 +143,7 @@ func getDefaultConfig() *Config {
 }
 
 func NewDefaultServer() *Server {
-	return NewServer(getDefaultConfig())
+	return NewServer(NewDefaultConfig())
 }
 
 func NewServer(cfg *Config) *Server {
@@ -278,7 +278,7 @@ type CollectHandle func(collector *Collector, targetURL string) ([]byte, error)
 type Collector struct {
 	collectHandle   CollectHandle
 	proxyController *torgo.Controller
-	client          *http.Client
+	Client          *http.Client
 	proxySock5Host  string
 	lastRefresh     time.Time
 	concurrency     uint
@@ -311,7 +311,7 @@ func NewCollector(proxySock5Host, proxyControllerHost string, collect CollectHan
 		}
 		return &Collector{
 			proxyController: proxyController,
-			client:          client,
+			Client:          client,
 			proxySock5Host:  proxySock5Host,
 			collectHandle:   collect,
 			concurrency:     concurrency,
@@ -339,8 +339,8 @@ func (c *Collector) RefreshClient() error {
 			log.Println(err)
 			return err
 		}
-		c.client = client
-		c.client.Timeout = time.Second * 10
+		c.Client = client
+		c.Client.Timeout = time.Second * 10
 		if duration < time.Hour {
 			log.Println("Refreshed Client! Duration: ", duration)
 		}
