@@ -7,7 +7,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
-	"github.com/jannchie/gazer-system/internal/gs"
+	"github.com/jannchie/gazer-system/pkg/server/gs"
 )
 
 type TemporaryError struct {
@@ -32,6 +32,7 @@ func main() {
 			log.Fatalln(err)
 		}
 		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36 Edg/105.0.1343.42")
+		req.Header.Set("Cookie", fmt.Sprintf("buvid3=%s", "fake-buvid3"))
 		resp, err := c.Client.Do(req)
 		if err != nil {
 			return nil, err

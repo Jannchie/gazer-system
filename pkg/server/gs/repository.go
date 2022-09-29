@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/jannchie/gazer-system/internal/variables"
+	"github.com/jannchie/gazer-system/pkg/server/variables"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

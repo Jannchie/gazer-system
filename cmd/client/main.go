@@ -5,7 +5,7 @@ import (
 	"log"
 
 	"github.com/jannchie/gazer-system/api"
-	"github.com/jannchie/gazer-system/pkg/gs"
+	"github.com/jannchie/gazer-system/pkg/client/gs"
 )
 
 func main() {

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/jannchie/gazer-system/api"
-	"github.com/jannchie/gazer-system/internal/variables"
+	"github.com/jannchie/gazer-system/pkg/server/variables"
 	"github.com/jannchie/speedo"
 	"github.com/wybiral/torgo"
 	"google.golang.org/grpc"
