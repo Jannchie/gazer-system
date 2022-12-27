@@ -3,6 +3,8 @@ module github.com/jannchie/gazer-system
 go 1.16
 
 require (
+	github.com/EDDYCJY/fake-useragent v0.2.0 // indirect
+	github.com/PuerkitoBio/goquery v1.8.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/jannchie/speedo v0.4.3
 	github.com/wybiral/torgo v0.0.0-20201209223426-5fd9910eab31

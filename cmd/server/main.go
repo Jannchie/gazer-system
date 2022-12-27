@@ -7,6 +7,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
+	browser "github.com/EDDYCJY/fake-useragent"
 	"github.com/jannchie/gazer-system/pkg/server/gs"
 )
 
@@ -31,8 +32,8 @@ func main() {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36 Edg/105.0.1343.42")
-		req.Header.Set("Cookie", fmt.Sprintf("buvid3=%s", "fake-buvid3"))
+		req.Header.Set("User-Agent", browser.Random())
+		// req.Header.Set("Cookie", fmt.Sprintf("buvid3=%s", "fake-buvid3"))
 		resp, err := c.Client.Do(req)
 		if err != nil {
 			return nil, err
